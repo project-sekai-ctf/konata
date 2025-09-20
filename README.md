@@ -1,5 +1,10 @@
 # kona
 
+[![ci](https://github.com/project-sekai-ctf/konata/actions/workflows/lint_test.yml/badge.svg)](https://github.com/project-sekai-ctf/konata/actions/workflows/lint_test.yml)
+
+[![pypi](https://img.shields.io/pypi/v/konata.svg)](https://pypi.python.org/project/konata)
+[![license](https://img.shields.io/github/license/project-sekai-ctf/konata.svg)](https://github.com/project-sekai-ctf/konata/blob/master/LICENSE)
+
 kona is a CTF tool for managing challenges and deploying them across multiple CTF platforms. It aims to fix the problems we have experienced while hosting CTFs.
 
 **kona is a work in progress. while it's cool and nice, please refrain from actually using it for now.**
