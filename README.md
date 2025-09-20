@@ -1,7 +1,6 @@
 # kona
 
 [![ci](https://github.com/project-sekai-ctf/konata/actions/workflows/lint_test.yml/badge.svg)](https://github.com/project-sekai-ctf/konata/actions/workflows/lint_test.yml)
-
 [![pypi](https://img.shields.io/pypi/v/konata.svg)](https://pypi.python.org/project/konata)
 [![license](https://img.shields.io/github/license/project-sekai-ctf/konata.svg)](https://github.com/project-sekai-ctf/konata/blob/master/LICENSE)
 
