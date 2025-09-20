@@ -1,0 +1,15 @@
+# Reference: https://github.com/project-sekai-ctf/konata
+[discovery]
+challenge_folder_depth = 4
+
+[secrets]
+rctf_credentials.value = '7zIGHRTvwtL/yvTAZiVegR2b/H2yUz1sArcZr++0CSdJEubMJnj9SVEeeuEBhTLMlhQoiBRbkLBVLal7OMzFqYn8M1AsD3eqjLf/0MakZ1dqA7gK4E+7ZtxK4fbh'
+ctfd_credentials.value = 'ctfd_5bbb659f3ffb85533260c40af3fd46cd0ca4a742fe80fc7dac366e38c4675424'
+
+[rctf]
+base_url = 'http://127.0.0.1:3918'
+team_token.secret = 'rctf_credentials'
+
+[ctfd]
+base_url = 'http://127.0.0.1:3919'
+admin_token.secret = 'ctfd_credentials'

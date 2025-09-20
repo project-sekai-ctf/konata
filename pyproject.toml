@@ -1,0 +1,75 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "konata"
+description = "a CTF tool for managing challenges and deploying them across multiple CTF platforms"
+authors = [
+    {name = "es3n1n", email = "git@es3n1n.im"}
+]
+license = "Apache-2.0"
+version = "0.0.1"
+requires-python = ">=3.13"
+dependencies = [
+    "click>=8.3.0",
+    "httpx>=0.28.1",
+    "jinja2>=3.1.6",
+    "loguru>=0.7.3",
+    "pydantic>=2.11.9",
+    "pyyaml>=6.0.2",
+    "uvloop>=0.21.0; sys_platform != 'win32'",
+]
+
+[project.urls]
+source = 'https://github.com/project-sekai-ctf/konata'
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["kona/"]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.18.2",
+    "psycopg2-binary>=2.9.10",
+    "pymysql>=1.1.2",
+    "ruff>=0.13.1",
+    "types-psycopg2>=2.9.21.20250915",
+    "types-pymysql>=1.1.0.20250916",
+    "types-pyyaml>=6.0.12.20250915",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    # Conflicting stuff
+    "D211", "D212", "D203", "COM812", "ISC001",
+    # We need a new line at the end of file
+    "W391",
+    # No docs
+    "D",
+    # I will fix all the fixmes and todos one day, please don't remind me about them
+    "FIX001", "FIX002",
+    # No issue links yet
+    "TD003",
+    # Infra stuff doesnt need __init__
+    "INP001",
+]
+flake8-quotes.inline-quotes = "single"
+
+[tool.ruff.format]
+quote-style = "single"
+line-ending = "lf"
+
+[tool.ruff.lint.pylint]
+max-args = 6
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+combine-as-imports = false

@@ -1,0 +1,126 @@
+services:
+  # rctf
+  rctf:
+    image: ghcr.io/otter-sec/rctf:main
+    restart: unless-stopped
+    ports:
+      - '3918:80'
+    networks:
+      - rctf
+    environment:
+      - "RCTF_DATABASE_PASSWORD=kona"
+      - "RCTF_REDIS_PASSWORD=kona"
+    volumes:
+      - ./rctf/rctf.d:/app/rctf.d
+      - type: tmpfs
+        target: /app/uploads
+        tmpfs:
+          size: 1073741824  # 1gb
+    depends_on:
+      - rctf-redis
+      - rctf-postgres
+  rctf-redis:
+    image: redis:6.0.6
+    restart: always
+    command: ['redis-server', '--requirepass', 'kona']
+    networks:
+      rctf:
+        aliases:
+          - redis
+  rctf-postgres:
+    image: postgres:12.3
+    restart: always
+    environment:
+      - "POSTGRES_PASSWORD=kona"
+      - "POSTGRES_USER=kona"
+      - "POSTGRES_DB=kona"
+    networks:
+      rctf:
+        aliases:
+          - postgres
+    volumes:
+      - type: tmpfs
+        target: /var/lib/postgresql/data
+        tmpfs:
+          size: 1073741824  # 1gb
+  rctf-setup:
+    image: kona/rctf-setup:latest
+    build: ./rctf/rctf.setup
+    environment:
+      - "RCTF_DATABASE_PASSWORD=kona"
+      - "RCTF_REDIS_PASSWORD=kona"
+      - "RCTF_HOST=rctf"
+    networks:
+      - rctf
+    depends_on:
+      - rctf-postgres
+      - rctf-redis
+      - rctf
+  # ctfd
+  ctfd:
+    image: ghcr.io/ctfd/ctfd:latest
+    restart: unless-stopped
+    user: root
+    ports:
+      - "3919:8000"
+    environment:
+      - "UPLOAD_FOLDER=/var/uploads"
+      - "DATABASE_URL=mysql+pymysql://ctfd:ctfd@mysql/ctfd"
+      - "REDIS_URL=redis://redis:6379"
+      - "WORKERS=1"
+      - "LOG_FOLDER=/var/log/ctfd"
+      - "ACCESS_LOG=-"
+      - "ERROR_LOG=-"
+      - "REVERSE_PROXY=false"
+    depends_on:
+      - ctfd-mysql
+      - ctfd-redis
+    networks:
+      - ctfd
+    volumes:
+      - type: tmpfs
+        target: /var/uploads
+        tmpfs:
+          size: 1073741824  # 1gb
+  ctfd-mysql:
+    image: mariadb:10.11
+    restart: always
+    environment:
+      - MARIADB_ROOT_PASSWORD=ctfd
+      - MARIADB_USER=ctfd
+      - MARIADB_PASSWORD=ctfd
+      - MARIADB_DATABASE=ctfd
+      - MARIADB_AUTO_UPGRADE=1
+    volumes:
+      - type: tmpfs
+        target: /var/lib/mysql
+        tmpfs:
+          size: 1073741824  # 1gb
+    ports:
+      - "3306:3306"
+    networks:
+      ctfd:
+        aliases:
+          - mysql
+    command: [mysqld, --character-set-server=utf8mb4, --collation-server=utf8mb4_unicode_ci, --wait_timeout=28800, --log-warnings=0]
+  ctfd-redis:
+    image: redis:4
+    restart: always
+    networks:
+      ctfd:
+        aliases:
+          - redis
+  ctfd-setup:
+    image: kona/ctfd-setup:latest
+    build: ./ctfd/ctfd.setup
+    environment:
+      - "CTFD_HOST=ctfd"
+    networks:
+      - ctfd
+    depends_on:
+      - ctfd-mysql
+      - ctfd-redis
+      - ctfd
+networks:
+  rctf: {}
+  ctfd: {}

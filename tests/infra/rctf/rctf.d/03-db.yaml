@@ -1,0 +1,8 @@
+database:
+    sql:
+        host: postgres
+        user: kona
+        database: kona
+    redis:
+        host: redis
+    migrate: before

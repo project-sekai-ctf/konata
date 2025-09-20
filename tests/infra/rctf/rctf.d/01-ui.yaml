@@ -1,0 +1,7 @@
+ctfName: kona
+meta:
+  description: kona
+imageUrl: 'https://quals.2025.ctf.mt/images/MaltaCTF.png'
+faviconUrl: 'https://quals.2025.ctf.mt/static/favicon.ico'
+homeContent: |
+    <timer></timer>

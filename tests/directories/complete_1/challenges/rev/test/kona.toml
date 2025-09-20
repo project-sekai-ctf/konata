@@ -1,0 +1,43 @@
+# Reference: https://github.com/project-sekai-ctf/konata
+[[challenges]]
+category = "rev"
+name = "test"
+author = "es3n1n"
+
+description = """
+something1
+"""
+
+flags.rctf = "SEKAI{test_flag}"
+flags.ctfd = [
+    {flag = "SEKAI{test_flag}", type = "static"},
+]
+
+attachments = [
+    'attachments/',
+]
+
+endpoints = [
+    {type = "http", endpoint = "test.chals.sekai.team"},
+    {type = "https", endpoint = "test2.chals.sekai.team", name = "test2"},
+    {type = "socat", endpoint = "test3.chals.sekai.team", port = 1337},
+    {type = "nc", endpoint = "test4.chals.sekai.team"},
+    {type = "ncat-ssl", endpoint = "test5.chals.sekai.team", port = 1338},
+]
+
+scoring.initial_value = 500
+scoring.minimum_value = 100
+
+scoring.rctf.eligible_for_tiebreaks = true
+
+scoring.ctfd.decay_function = "logarithmic"
+scoring.ctfd.decay = 60
+scoring.ctfd.max_attempts = 0
+
+ctfd.state = "visible"
+ctfd.type = "dynamic"
+ctfd.topics = ["topic"]
+ctfd.tags = ["tag"]
+ctfd.hints = [
+    {hint = "hint"},
+]
