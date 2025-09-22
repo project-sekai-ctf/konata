@@ -25,9 +25,18 @@ def load_kubeconfig(global_config: KonaGlobalConfig, cluster_name: str) -> None:
         raise ValueError(msg)
 
     if not cluster.kubeconfig:
-        logger.info(f'Loaded incluster config for cluster "{cluster_name}"')
-        load_incluster_config()
-        return
+        if cluster.incluster:
+            load_incluster_config()
+            logger.info(f'Loaded incluster config for cluster "{cluster_name}"')
+            return
+
+        if cluster.use_default:
+            load_kube_config()
+            logger.info(f'Loaded default config for cluster "{cluster_name}"')
+            return
+
+        msg = f'Unable to load config for cluster "{cluster_name}"'
+        raise ValueError(msg)
 
     kubeconfig = cluster.kubeconfig.load(global_config)
     load_kube_config(

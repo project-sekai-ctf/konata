@@ -251,7 +251,9 @@ unknown endpoint type {{ endpoint.type }}
 
 
 class KonaKubernetesClusterConfig(BaseModel):
-    incluster: bool = True
+    incluster: bool = False
+    # KUBECONFIG or ~/.kube/config
+    use_default: bool = True
     kubeconfig: KonaSecretOrValue | None = None
 
 
