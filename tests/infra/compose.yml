@@ -19,6 +19,7 @@ services:
     depends_on:
       - rctf-redis
       - rctf-postgres
+    platform: 'linux/amd64'
   rctf-redis:
     image: redis:6.0.6
     restart: always
@@ -82,6 +83,7 @@ services:
         target: /var/uploads
         tmpfs:
           size: 1073741824  # 1gb
+    platform: 'linux/amd64'
   ctfd-mysql:
     image: mariadb:10.11
     restart: always
