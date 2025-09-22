@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 
@@ -11,6 +12,12 @@ from loguru import logger
 from kona.schema.models import KonaChallengeConfig, KonaGlobalConfig
 
 from .kubernetes import load_kubeconfig
+
+
+@dataclass
+class DeploymentResult:
+    deployed_kubernetes_manifests: list[dict] = field(default_factory=list)
+    built_docker_images: list[str] = field(default_factory=list)
 
 
 @cache
@@ -46,7 +53,10 @@ def _push_one(env: docker.DockerClient, repository: str, tag: str) -> None:
 
 
 async def build_docker_images(
-    config: KonaGlobalConfig, path: Path, deployment_config: KonaChallengeConfig.ChallengeDeploymentConfig
+    result: DeploymentResult,
+    config: KonaGlobalConfig,
+    path: Path,
+    deployment_config: KonaChallengeConfig.ChallengeDeploymentConfig,
 ) -> None:
     if not deployment_config.images:
         # No need to call docker_env if we don't need it
@@ -81,10 +91,14 @@ async def build_docker_images(
 
         logger.info(f'Pushing {full_ref} for {image.name}:{image.tag}')
         await asyncio.to_thread(_push_one, env=env, repository=repository, tag=image.tag)
+        result.built_docker_images.append(full_ref)
 
 
 async def apply_kubernetes_manifests(
-    config: KonaGlobalConfig, path: Path, deployment_config: KonaChallengeConfig.ChallengeDeploymentConfig
+    result: DeploymentResult,
+    config: KonaGlobalConfig,
+    path: Path,
+    deployment_config: KonaChallengeConfig.ChallengeDeploymentConfig,
 ) -> None:
     clusters_count = len(config.clusters)
 
@@ -98,32 +112,36 @@ async def apply_kubernetes_manifests(
 
         dyn = DynamicClient(ApiClient())
 
-        manifest_data = (path / manifest.path).read_text()
-        for document in yaml.safe_load_all(manifest_data):
-            api_version = document['apiVersion']
-            kind = document['kind']
-            meta = document['metadata']
-            name = meta['name']
-            namespace = meta.get('namespace')
+        for manifest_path_str in manifest.paths:
+            manifest_data = (path / manifest_path_str).read_text()
+            for document in yaml.safe_load_all(manifest_data):
+                api_version = document['apiVersion']
+                kind = document['kind']
+                meta = document['metadata']
+                name = meta['name']
+                namespace = meta.get('namespace')
 
-            resource = dyn.resources.get(api_version=api_version, kind=kind)
+                resource = dyn.resources.get(api_version=api_version, kind=kind)
 
-            kwargs = {}
-            if resource.namespaced:
-                kwargs['namespace'] = namespace or 'default'
+                kwargs = {}
+                if resource.namespaced:
+                    kwargs['namespace'] = namespace or 'default'
 
-            resource.patch(
-                name=name,
-                body=document,
-                content_type='application/apply-patch+yaml',
-                field_manager='kona',
-                **kwargs,
-            )
-            logger.info(f'Applied {kind}/{name}')
+                resource.patch(
+                    name=name,
+                    body=document,
+                    content_type='application/apply-patch+yaml',
+                    field_manager='kona',
+                    **kwargs,
+                )
+                logger.info(f'Applied {api_version}/{kind}/{name}')
+                result.deployed_kubernetes_manifests.append(document)
 
 
 async def deploy_challenge(
     config: KonaGlobalConfig, path: Path, deployment_config: KonaChallengeConfig.ChallengeDeploymentConfig
-) -> None:
-    await build_docker_images(config, path, deployment_config)
-    await apply_kubernetes_manifests(config, path, deployment_config)
+) -> DeploymentResult:
+    result = DeploymentResult()
+    await build_docker_images(result, config, path, deployment_config)
+    await apply_kubernetes_manifests(result, config, path, deployment_config)
+    return result

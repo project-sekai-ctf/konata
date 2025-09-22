@@ -4,6 +4,7 @@ from tempfile import TemporaryDirectory
 from loguru import logger
 
 from kona.core.deployment import deploy_challenge
+from kona.core.k8s_manifest_discovery import discover_deployed_endpoints
 from kona.core.kubernetes import load_kubeconfig
 from kona.external.abc import ExternalProviderABC
 from kona.external.ctfd import CTFDProvider
@@ -21,6 +22,10 @@ async def sync_challenge(
     if challenge.discovery.skip:
         logger.warning(f'Skipping {path}')
         return
+
+    # Deploy
+    deployment_result = await deploy_challenge(config, path, challenge.deployment)
+    discover_deployed_endpoints(config, challenge, deployment_result)
 
     # Sync challenge to the providers
     for chal in challenge.challenges:
@@ -45,9 +50,6 @@ async def sync_challenge(
                 await provider.sync_challenge(chal, attachments_path, description)
                 # challenges were updated, refresh the local cache
                 await provider.setup()
-
-    # Deploy
-    await deploy_challenge(config, path, challenge.deployment)
 
 
 async def try_discover_challenges(

@@ -1,0 +1,27 @@
+apiVersion: "klodd.tjcsec.club/v1"
+kind: Challenge
+metadata:
+  name: chal
+spec:
+  name: chal
+  timeout: 9000000
+  pods:
+    - name: app
+      egress: true
+      ports:
+        - port: 80
+      spec:
+        containers:
+          - name: main
+            image: traefik/whoami:latest
+            startupProbe:
+              tcpSocket:
+                port: 80
+              initialDelaySeconds: 0
+              periodSeconds: 5
+              failureThreshold: 30
+        automountServiceAccountToken: false
+  expose:
+    kind: http
+    pod: app
+    port: 80

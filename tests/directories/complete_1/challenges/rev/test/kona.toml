@@ -49,4 +49,8 @@ tag = "latest"
 registry_name = "test_registry"
 
 [[deployment.kubernetes_manifests]]
-path = "manifests/00-demo.yaml"
+paths = [
+    "manifests/00-demo.yaml",
+    "manifests/01-klodd-crd.yaml",
+    "manifests/02-klodd-challenge.yaml",
+]

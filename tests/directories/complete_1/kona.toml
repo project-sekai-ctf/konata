@@ -1,6 +1,8 @@
 # Reference: https://github.com/project-sekai-ctf/konata
 [discovery]
 challenge_folder_depth = 4
+klodd_domain = "instancer.es3n1n.eu"
+klodd_endpoint_name = "Instancer"
 
 [secrets]
 rctf_credentials.value = '7zIGHRTvwtL/yvTAZiVegR2b/H2yUz1sArcZr++0CSdJEubMJnj9SVEeeuEBhTLMlhQoiBRbkLBVLal7OMzFqYn8M1AsD3eqjLf/0MakZ1dqA7gK4E+7ZtxK4fbh'
