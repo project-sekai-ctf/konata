@@ -5,6 +5,7 @@ challenge_folder_depth = 4
 [secrets]
 rctf_credentials.value = '7zIGHRTvwtL/yvTAZiVegR2b/H2yUz1sArcZr++0CSdJEubMJnj9SVEeeuEBhTLMlhQoiBRbkLBVLal7OMzFqYn8M1AsD3eqjLf/0MakZ1dqA7gK4E+7ZtxK4fbh'
 ctfd_credentials.value = 'ctfd_5bbb659f3ffb85533260c40af3fd46cd0ca4a742fe80fc7dac366e38c4675424'
+kubeconfig.file_path = '../../../tests/infra/k3s/k3s.output/kubeconfig'
 
 [rctf]
 base_url = 'http://127.0.0.1:3918'
@@ -15,4 +16,7 @@ base_url = 'http://127.0.0.1:3919'
 admin_token.secret = 'ctfd_credentials'
 
 [registries]
-test_registry = "127.0.0.1:5111"
+test_registry = '127.0.0.1:5111'
+
+[clusters]
+k3s_cluster.kubeconfig.secret = 'kubeconfig'

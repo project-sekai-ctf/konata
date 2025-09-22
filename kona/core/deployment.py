@@ -3,9 +3,14 @@ from functools import cache
 from pathlib import Path
 
 import docker
+import yaml
+from kubernetes.client import ApiClient
+from kubernetes.dynamic import DynamicClient
 from loguru import logger
 
 from kona.schema.models import KonaChallengeConfig, KonaGlobalConfig
+
+from .kubernetes import load_kubeconfig
 
 
 @cache
@@ -78,7 +83,47 @@ async def build_docker_images(
         await asyncio.to_thread(_push_one, env=env, repository=repository, tag=image.tag)
 
 
+async def apply_kubernetes_manifests(
+    config: KonaGlobalConfig, path: Path, deployment_config: KonaChallengeConfig.ChallengeDeploymentConfig
+) -> None:
+    clusters_count = len(config.clusters)
+
+    for manifest in deployment_config.kubernetes_manifests:
+        if clusters_count != 1 and not manifest.cluster_name:
+            msg = 'Cluster name should always be defined when there are more than one cluster defined'
+            raise ValueError(msg)
+
+        if manifest.cluster_name:
+            load_kubeconfig(config, manifest.cluster_name)
+
+        dyn = DynamicClient(ApiClient())
+
+        manifest_data = (path / manifest.path).read_text()
+        for document in yaml.safe_load_all(manifest_data):
+            api_version = document['apiVersion']
+            kind = document['kind']
+            meta = document['metadata']
+            name = meta['name']
+            namespace = meta.get('namespace')
+
+            resource = dyn.resources.get(api_version=api_version, kind=kind)
+
+            kwargs = {}
+            if resource.namespaced:
+                kwargs['namespace'] = namespace or 'default'
+
+            resource.patch(
+                name=name,
+                body=document,
+                content_type='application/apply-patch+yaml',
+                field_manager='kona',
+                **kwargs,
+            )
+            logger.info(f'Applied {kind}/{name}')
+
+
 async def deploy_challenge(
     config: KonaGlobalConfig, path: Path, deployment_config: KonaChallengeConfig.ChallengeDeploymentConfig
 ) -> None:
     await build_docker_images(config, path, deployment_config)
+    await apply_kubernetes_manifests(config, path, deployment_config)

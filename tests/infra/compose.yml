@@ -133,6 +133,30 @@ services:
         target: /var/lib/registry
         tmpfs:
           size: 1073741824  # 1gb
+  k3s:
+    image: rancher/k3s:v1.31.12-k3s1
+    privileged: true
+    command:
+      - server
+      - --disable=traefik,servicelb,metrics-server
+      - --write-kubeconfig=/output/kubeconfig
+      - --write-kubeconfig-mode=644
+    ports:
+      - "6443:6443"
+    environment:
+      - K3S_NODE_NAME=k3s-server
+    volumes:
+      - ./k3s/k3s.config/00-registry.yaml:/etc/rancher/k3s/00-registry.yaml:ro
+      - ./k3s/k3s.output:/output
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    tmpfs:
+      - /run
+      - /var/run
+      - /var/lib/rancher/k3s
+    restart: unless-stopped
+    depends_on:
+      - registry
 networks:
   rctf: {}
   ctfd: {}

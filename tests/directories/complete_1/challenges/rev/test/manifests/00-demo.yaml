@@ -1,0 +1,106 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-config
+  labels:
+    app: demo-apply
+data:
+  MESSAGE: "Hello from ConfigMap v1"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: demo-sa
+  labels:
+    app: demo-apply
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-deploy
+  labels:
+    app: demo-apply
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-apply
+      component: web
+  template:
+    metadata:
+      labels:
+        app: demo-apply
+        component: web
+    spec:
+      serviceAccountName: demo-sa
+      containers:
+      - name: web
+        image: traefik/whoami:latest
+        ports:
+        - containerPort: 80
+        env:
+        - name: MESSAGE
+          valueFrom:
+            configMapKeyRef:
+              name: demo-config
+              key: MESSAGE
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 2
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 3
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-svc
+  labels:
+    app: demo-apply
+spec:
+  selector:
+    app: demo-apply
+    component: web
+  ports:
+  - port: 80
+    targetPort: 80
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: demo-job
+  labels:
+    app: demo-apply
+spec:
+  template:
+    metadata:
+      labels:
+        app: demo-apply
+        component: job
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: print
+        image: busybox:1.36
+        command: ["sh","-c","echo MESSAGE=$(printf %s \"$MESSAGE\"); sleep 2"]
+        env:
+        - name: MESSAGE
+          valueFrom:
+            configMapKeyRef:
+              name: demo-config
+              key: MESSAGE
+  backoffLimit: 0

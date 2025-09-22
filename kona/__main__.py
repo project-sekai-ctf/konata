@@ -4,7 +4,7 @@ import click
 from loguru import logger
 
 from .core.sync import sync
-from .schema.models import KonaGlobalConfig
+from .schema.models import KonaGlobalConfig, kona_global_state
 from .schema.parsers import load_schema
 
 
@@ -24,11 +24,11 @@ except ImportError:
     required=True,
 )
 def main(deploy_directory: str) -> None:
-    deploy_directory_path = Path(deploy_directory).resolve().absolute()
-    logger.info(f'Starting in {deploy_directory_path}')
+    kona_global_state.root_path = Path(deploy_directory).resolve().absolute()
+    logger.info(f'Starting in {kona_global_state.root_path}')
 
-    kona_config = load_schema(deploy_directory_path, model=KonaGlobalConfig)
-    run(sync(deploy_directory_path, kona_config))
+    kona_config = load_schema(kona_global_state.root_path, model=KonaGlobalConfig)
+    run(sync(kona_global_state.root_path, kona_config))
 
 
 if __name__ == '__main__':

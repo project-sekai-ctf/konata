@@ -1,0 +1,4 @@
+mirrors:
+  "localhost:5111":
+    endpoint:
+      - "http://host.docker.internal:5111"

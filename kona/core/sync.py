@@ -4,6 +4,7 @@ from tempfile import TemporaryDirectory
 from loguru import logger
 
 from kona.core.deployment import deploy_challenge
+from kona.core.kubernetes import load_kubeconfig
 from kona.external.abc import ExternalProviderABC
 from kona.external.ctfd import CTFDProvider
 from kona.external.rctf import RCTFProvider
@@ -87,6 +88,10 @@ async def sync(root_path: Path, config: KonaGlobalConfig) -> None:
     # Setup external providers
     for provider in external_providers:
         await provider.setup()
+
+    # Set the kubeconfig if there's only one available
+    if len(config.clusters) == 1:
+        load_kubeconfig(config, next(iter(config.clusters.keys())))
 
     # Discover challenges
     await try_discover_challenges(root_path, config, external_providers=external_providers, is_root=True)

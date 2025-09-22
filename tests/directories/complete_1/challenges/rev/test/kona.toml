@@ -47,3 +47,6 @@ path = "challenge"
 name = "rev-test-challenge"
 tag = "latest"
 registry_name = "test_registry"
+
+[[deployment.kubernetes_manifests]]
+path = "manifests/00-demo.yaml"

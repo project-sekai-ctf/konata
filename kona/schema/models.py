@@ -1,9 +1,19 @@
 import os
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
 from loguru import logger
 from pydantic import AnyHttpUrl, BaseModel, SecretStr, field_validator, model_validator
+
+
+@dataclass
+class KonaGlobalState:
+    root_path: Path
+
+
+# TODO(es3n1n): this is very sketchy
+kona_global_state = KonaGlobalState(root_path=Path.cwd())
 
 
 class KonaEndpointType(StrEnum):
@@ -122,7 +132,12 @@ class KonaChallengeConfig(BaseModel):
             build_args: dict[str, str] = {}
             platform: str | None = None
 
+        class KonaKubernetesManifest(BaseModel):
+            path: str
+            cluster_name: str | None = None
+
         images: list[DockerImage] = []
+        kubernetes_manifests: list[KonaKubernetesManifest] = []
 
     discovery: DiscoveryConfig = DiscoveryConfig()
     challenges: list[KonaChallengeItem] = []
@@ -130,24 +145,9 @@ class KonaChallengeConfig(BaseModel):
 
 
 class KonaSecret(BaseModel):
-    file_path: Path | None = None
+    file_path: str | None = None
     value: SecretStr | None = None
     env: str | None = None
-
-    _loaded_value_do_not_use: SecretStr | None = None
-
-    @field_validator('file_path')
-    @classmethod
-    def file_must_exist(cls, v: Path | None) -> Path | None:
-        if v is None:
-            return v
-        if not v.exists():
-            msg = f'file_path does not exist: {v}'
-            raise ValueError(msg)
-        if not v.is_file():
-            msg = f'file_path is not a file: {v}'
-            raise ValueError(msg)
-        return v
 
     @model_validator(mode='after')
     def exactly_one_of(self) -> 'KonaSecret':
@@ -162,20 +162,26 @@ class KonaSecret(BaseModel):
         if self.value is not None:
             return self.value.get_secret_value()
 
-        if self._loaded_value_do_not_use is not None:
-            return self._loaded_value_do_not_use.get_secret_value()
-
         if self.file_path is not None:
-            self._loaded_value_do_not_use = SecretStr(self.file_path.read_text())
-            return self._loaded_value_do_not_use.get_secret_value()
+            file_path = Path(self.file_path)
+            if self.file_path.startswith('.'):
+                # TODO(es3n1n): move to an util
+                file_path = (kona_global_state.root_path / self.file_path).resolve().absolute()
+
+            if not file_path.exists():
+                msg = f'{file_path} does not exist'
+                raise FileNotFoundError(msg)
+
+            self.value = SecretStr(file_path.read_text())
+            return self.value.get_secret_value()
 
         if self.env is not None:
             value = os.getenv(self.env)
             if value is None:
                 msg = f'Environment variable {self.env} is not set'
                 raise ValueError(msg)
-            self._loaded_value_do_not_use = SecretStr(value)
-            return self._loaded_value_do_not_use.get_secret_value()
+            self.value = SecretStr(value)
+            return self.value.get_secret_value()
 
         raise RuntimeError
 
@@ -244,6 +250,11 @@ unknown endpoint type {{ endpoint.type }}
         return v.strip()
 
 
+class KonaKubernetesClusterConfig(BaseModel):
+    incluster: bool = True
+    kubeconfig: KonaSecretOrValue | None = None
+
+
 class KonaGlobalConfig(BaseModel):
     discovery: KonaDiscoveryConfig = KonaDiscoveryConfig()
     secrets: dict[str, KonaSecret] = {}
@@ -251,3 +262,4 @@ class KonaGlobalConfig(BaseModel):
     ctfd: KonaCTFDCredentials | None = None
     templates: KonaTemplatesConfig = KonaTemplatesConfig()
     registries: dict[str, str] = {}
+    clusters: dict[str, KonaKubernetesClusterConfig] = {}
