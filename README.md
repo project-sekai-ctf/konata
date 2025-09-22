@@ -25,6 +25,7 @@ kona is a CTF tool for managing challenges and deploying them across multiple CT
 - [ ] discord webhook for logs
 - [ ] delete challenges that are missing in repo (should be opt-in)
 - [ ] cover with tests
+- [ ] test docker/k8s gcloud auth stuff, should be fineTM though
 - [ ] documentation
 
 ## Acknowledgements
