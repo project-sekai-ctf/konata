@@ -13,6 +13,7 @@ version = "0.0.1"
 requires-python = ">=3.13"
 dependencies = [
     "click>=8.3.0",
+    "docker>=7.1.0",
     "httpx>=0.28.1",
     "jinja2>=3.1.6",
     "loguru>=0.7.3",
@@ -36,6 +37,7 @@ dev = [
     "psycopg2-binary>=2.9.10",
     "pymysql>=1.1.2",
     "ruff>=0.13.1",
+    "types-docker>=7.1.0.20250916",
     "types-psycopg2>=2.9.21.20250915",
     "types-pymysql>=1.1.0.20250916",
     "types-pyyaml>=6.0.12.20250915",

@@ -41,3 +41,9 @@ ctfd.tags = ["tag"]
 ctfd.hints = [
     {hint = "hint"},
 ]
+
+[[deployment.images]]
+path = "challenge"
+name = "rev-test-challenge"
+tag = "latest"
+registry_name = "test_registry"

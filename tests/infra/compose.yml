@@ -123,6 +123,16 @@ services:
       - ctfd-mysql
       - ctfd-redis
       - ctfd
+  # deployment tests
+  registry:
+    image: registry:latest
+    ports:
+      - "5111:5000"
+    volumes:
+      - type: tmpfs
+        target: /var/lib/registry
+        tmpfs:
+          size: 1073741824  # 1gb
 networks:
   rctf: {}
   ctfd: {}

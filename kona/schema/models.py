@@ -113,8 +113,20 @@ class KonaChallengeConfig(BaseModel):
     class DiscoveryConfig(BaseModel):
         skip: bool = False
 
+    class ChallengeDeploymentConfig(BaseModel):
+        class DockerImage(BaseModel):
+            path: str
+            name: str
+            tag: str = 'latest'
+            registry_name: str | None = None
+            build_args: dict[str, str] = {}
+            platform: str | None = None
+
+        images: list[DockerImage] = []
+
     discovery: DiscoveryConfig = DiscoveryConfig()
     challenges: list[KonaChallengeItem] = []
+    deployment: ChallengeDeploymentConfig = ChallengeDeploymentConfig()
 
 
 class KonaSecret(BaseModel):
@@ -238,3 +250,4 @@ class KonaGlobalConfig(BaseModel):
     rctf: KonaRCTFCredentials | None = None
     ctfd: KonaCTFDCredentials | None = None
     templates: KonaTemplatesConfig = KonaTemplatesConfig()
+    registries: dict[str, str] = {}

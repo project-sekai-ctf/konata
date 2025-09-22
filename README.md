@@ -16,12 +16,12 @@ kona is a CTF tool for managing challenges and deploying them across multiple CT
 - [x] rCTF support
 - [x] CTFd support
 - [x] Challenge syncing
-- [ ] docker images building/pushing
+- [x] docker images building/pushing
 - [ ] k8s manifests deployment
 - [ ] kCTF support
 - [ ] klodd support
 - [ ] diff binaries in attachments and in challenge dir
-- [ ] github ci action
+- [ ] github ci action - run only changed stuff
 - [ ] discord webhook for logs
 - [ ] delete challenges that are missing in repo (should be opt-in)
 - [ ] cover with tests

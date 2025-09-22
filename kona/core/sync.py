@@ -3,6 +3,7 @@ from tempfile import TemporaryDirectory
 
 from loguru import logger
 
+from kona.core.deployment import deploy_challenge
 from kona.external.abc import ExternalProviderABC
 from kona.external.ctfd import CTFDProvider
 from kona.external.rctf import RCTFProvider
@@ -43,6 +44,9 @@ async def sync_challenge(
                 await provider.sync_challenge(chal, attachments_path, description)
                 # challenges were updated, refresh the local cache
                 await provider.setup()
+
+    # Deploy
+    await deploy_challenge(config, path, challenge.deployment)
 
 
 async def try_discover_challenges(

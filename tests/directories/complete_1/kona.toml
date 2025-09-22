@@ -13,3 +13,6 @@ team_token.secret = 'rctf_credentials'
 [ctfd]
 base_url = 'http://127.0.0.1:3919'
 admin_token.secret = 'ctfd_credentials'
+
+[registries]
+test_registry = "127.0.0.1:5111"
