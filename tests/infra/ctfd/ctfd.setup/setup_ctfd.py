@@ -54,8 +54,12 @@ def main() -> None:
             },
             follow_redirects=True,
         )
-        if r.status_code != HTTP_REDIRECT:
-            r.raise_for_status()
+        r.raise_for_status()
+        logger.info(f'CTFd setup response: {r.status_code}')
+
+        if 'admin@es3n1n.eu' not in r.text:
+            msg = f'CTFd setup failed: {r.text}'
+            raise ValueError(msg)
 
     with pymysql.connect(host=MYSQL_HOST, user='ctfd', password='ctfd', database='ctfd') as conn:  # noqa: S106
         with conn.cursor() as cursor:

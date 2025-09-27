@@ -19,7 +19,7 @@ kona is a CTF tool for managing challenges and deploying them across multiple CT
 - [x] docker images building/pushing
 - [x] k8s manifests deployment
 - [x] klodd support
-- [ ] Delay for RBACs, CRDs when applying k8s manifests
+- [x] Delay for RBACs, CRDs when applying k8s manifests
 - [ ] kCTF support
 - [ ] diff binaries in attachments and in challenge dir
 - [ ] github ci action - run only changed stuff
