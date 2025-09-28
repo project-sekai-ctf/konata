@@ -218,6 +218,7 @@ class KonaCTFDCredentials(BaseModel):
 
 class KonaDiscoveryConfig(BaseModel):
     challenge_folder_depth: int = 3
+    attachment_analysis_depth: int = 50
     klodd_domain: str | None = None
     klodd_endpoint_name: str | None = None
 

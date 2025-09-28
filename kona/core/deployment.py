@@ -22,10 +22,16 @@ from .kubernetes import load_kubeconfig
 DEFAULT_NAMESPACE = 'default'
 
 
+@dataclass(frozen=True)
+class BuiltDockerImage:
+    path: Path
+    full_ref: str
+
+
 @dataclass
 class DeploymentResult:
     deployed_kubernetes_manifests: list[dict] = field(default_factory=list)
-    built_docker_images: list[str] = field(default_factory=list)
+    built_docker_images: list[BuiltDockerImage] = field(default_factory=list)
 
 
 @cache
@@ -82,15 +88,24 @@ async def docker_build_images(
             repository = f'{registry.rstrip("/")}/{image.name}'
 
         full_ref = f'{repository}:{image.tag}'
+        full_path = (path / image.path).resolve().absolute()
+
         logger.info(f'Building {full_ref} for {image.name}:{image.tag}')
 
         await asyncio.to_thread(
             docker_build_image,
             env=env,
-            context_dir=(path / image.path).resolve(),
+            context_dir=full_path,
             full_ref=full_ref,
             build_args=image.build_args,
             platform=image.platform,
+        )
+
+        result.built_docker_images.append(
+            BuiltDockerImage(
+                path=full_path,
+                full_ref=full_ref,
+            )
         )
 
         if not image.registry_name:
@@ -99,7 +114,6 @@ async def docker_build_images(
 
         logger.info(f'Pushing {full_ref} for {image.name}:{image.tag}')
         await asyncio.to_thread(docker_push_image, env=env, repository=repository, tag=image.tag)
-        result.built_docker_images.append(full_ref)
 
 
 def _to_dict(obj: Any) -> dict[str, Any]:  # noqa: ANN401
