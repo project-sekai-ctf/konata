@@ -22,7 +22,7 @@ def load_yaml[T](file_path: Path, model: type[T]) -> T:
 
 def load_toml[T](file_path: Path, model: type[T]) -> T:
     return TypeAdapter(model).validate_python(
-        tomllib.loads(file_path.read_text()),
+        tomllib.loads(file_path.read_bytes().decode('utf-8')),
     )
 
 

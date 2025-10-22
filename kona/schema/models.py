@@ -85,6 +85,7 @@ class KonaChallengeItem(BaseModel):
     category: str
     name: str
     author: str
+    override_id: str | None = None
 
     description: str
 
@@ -98,6 +99,8 @@ class KonaChallengeItem(BaseModel):
 
     @property
     def challenge_id(self) -> str:
+        if self.override_id is not None:
+            return self.override_id
         return f'{self.category}_{self.name}'
 
     @field_validator('description')
