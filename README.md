@@ -21,6 +21,8 @@ kona is a CTF tool for managing challenges and deploying them across multiple CT
 - [x] klodd support
 - [x] Delay for RBACs, CRDs when applying k8s manifests
 - [x] diff binaries in attachments and in challenge dir
+- [ ] Command to compress the folder
+- [ ] Option to pass already compressed attachments
 - [ ] better diff displaying
 - [ ] discord webhook for logs
 - [ ] Option to not compress attachments and attach as-is
