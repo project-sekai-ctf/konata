@@ -3,7 +3,7 @@ import hashlib
 from pathlib import Path
 from urllib.parse import quote
 
-from httpx import AsyncClient
+from httpx import AsyncClient, Timeout
 from loguru import logger
 
 from kona.schema.models import KonaChallengeItem, KonaGlobalConfig, KonaRCTFCredentials
@@ -26,6 +26,9 @@ class RCTFProvider(ExternalProviderABC):
         return AsyncClient(
             base_url=str(self.credentials.base_url),
             headers=headers,
+            timeout=Timeout(
+                timeout=60,
+            ),
         )
 
     async def setup(self) -> None:
