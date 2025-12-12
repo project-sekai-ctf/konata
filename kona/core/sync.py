@@ -104,7 +104,11 @@ async def try_discover_challenges(
 
     # Look for challenges in nested folders
     for item in path.iterdir():
-        if not item.is_dir():
+        try:
+            if not item.is_dir():
+                continue
+        except OSError as err:
+            logger.warning(f'Skipping folder {item} due to {err}')
             continue
         await try_discover_challenges(result, item, config, depth=depth + 1, external_providers=external_providers)
 

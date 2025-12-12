@@ -1,5 +1,6 @@
 import base64
 import hashlib
+from io import BytesIO
 from pathlib import Path
 from urllib.parse import quote
 
@@ -54,7 +55,7 @@ class RCTFProvider(ExternalProviderABC):
         # If its already deployed, return the existing file info
         async with self._client as client:
             r = await client.post(
-                '/api/v1/admin/upload/query',
+                '/api/v2/admin/upload/query',
                 json={
                     'uploads': [
                         {
@@ -73,16 +74,10 @@ class RCTFProvider(ExternalProviderABC):
         # Otherwise, upload it
         async with self._client as client:
             logger.info(f'Uploading {file.name} to rCTF')
-            b64_content = base64.b64encode(file.read_bytes()).decode()
             r = await client.post(
-                '/api/v1/admin/upload',
-                json={
-                    'files': [
-                        {
-                            'name': file.name,
-                            'data': f'data:application/octet-stream;base64,{b64_content}',
-                        }
-                    ]
+                '/api/v2/admin/upload',  # v2
+                files={
+                    'files': (file.name, BytesIO(file.read_bytes()), 'application/binary'),
                 },
             )
             r.raise_for_status()
@@ -106,12 +101,8 @@ class RCTFProvider(ExternalProviderABC):
         }
 
         if attachment_path is not None:
-            uploaded = await self._upload_file(attachment_path)
             challenge_dict['files'] = [
-                {
-                    'name': uploaded['name'],
-                    'url': uploaded['url'],
-                }
+                await self._upload_file(attachment_path)
             ]
 
         # TODO(es3n1n): cleanup previous attachments if changed
@@ -132,7 +123,7 @@ class RCTFProvider(ExternalProviderABC):
 
         async with self._client as client:
             r = await client.put(
-                f'/api/v1/admin/challs/{quote(challenge.challenge_id)}',
+                f'/api/v2/admin/challs/{quote(challenge.challenge_id)}',  # v2
                 json={
                     'data': challenge_dict,
                 },

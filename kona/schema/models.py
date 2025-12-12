@@ -112,8 +112,8 @@ class KonaChallengeItem(BaseModel):
     def flag_is_set(self) -> 'KonaChallengeItem':
         if self.flags.rctf or self.flags.ctfd:
             return self
-        msg = f'At least one flag must be set for challenge {self.challenge_id}'
-        raise ValueError(msg)
+        logger.warning(f'No flags set for challenge {self.challenge_id}')
+        return self
 
     @model_validator(mode='after')
     def warn_attachments(self) -> 'KonaChallengeItem':
