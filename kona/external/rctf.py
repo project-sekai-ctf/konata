@@ -1,4 +1,3 @@
-import base64
 import hashlib
 from io import BytesIO
 from pathlib import Path
@@ -101,9 +100,7 @@ class RCTFProvider(ExternalProviderABC):
         }
 
         if attachment_path is not None:
-            challenge_dict['files'] = [
-                await self._upload_file(attachment_path)
-            ]
+            challenge_dict['files'] = [await self._upload_file(attachment_path)]
 
         # TODO(es3n1n): cleanup previous attachments if changed
 

@@ -87,7 +87,7 @@ class KonaChallengeItem(BaseModel):
     author: str
     override_id: str | None = None
 
-    description: str
+    description: str = ''
 
     attachments: list[str] = []
 
