@@ -10,7 +10,7 @@ from kona.core.kubernetes import load_kubeconfig
 from kona.external.abc import ExternalProviderABC
 from kona.external.ctfd import CTFDProvider
 from kona.external.rctf import RCTFProvider
-from kona.schema.models import KonaChallengeConfig, KonaGlobalConfig
+from kona.schema.models import KonaChallengeConfig, KonaChallengeItem, KonaGlobalConfig
 from kona.schema.parsers import try_load_schema
 from kona.util.jinja import render_template
 from kona.util.tar import make_tar_gz
@@ -33,6 +33,12 @@ class SyncResult:
     groups: list[SynchronizedGroup] = field(default_factory=list)
 
 
+def _postprocess_endpoints(config: KonaGlobalConfig, challenge: KonaChallengeConfig, chal: KonaChallengeItem) -> None:
+    ctx = {'challenge': chal, 'challenges': challenge.challenges, 'config': config}
+    for ep in chal.endpoints:
+        ep.endpoint = render_template(ep.endpoint, **ctx)
+
+
 async def sync_challenge(
     result: SyncResult,
     config: KonaGlobalConfig,
@@ -46,7 +52,7 @@ async def sync_challenge(
         return
 
     # Deploy
-    deployment_result = await deploy_challenge(config, path, challenge.deployment)
+    deployment_result = await deploy_challenge(config, path, challenge)
     discover_deployed_endpoints(config, challenge, deployment_result)
 
     group = SynchronizedGroup(
@@ -55,11 +61,17 @@ async def sync_challenge(
 
     # Sync challenge to the providers
     for chal in challenge.challenges:
+        _postprocess_endpoints(config, challenge, chal)
+
         out_chal = SynchronizedChallenge()
         out_chal.description = render_template(
             config.templates.challenge_description,
             challenge=chal,
-            endpoints_rendered=render_template(config.templates.endpoints_text, challenge=chal),
+            challenges=challenge.challenges,
+            config=config,
+            endpoints_rendered=render_template(
+                config.templates.endpoints_text, challenge=chal, challenges=challenge.challenges, config=config
+            ),
         )
         out_chal.attachments = [(path / item) for item in chal.attachments]
 

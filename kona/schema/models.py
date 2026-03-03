@@ -2,6 +2,7 @@ import os
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 
 from loguru import logger
 from pydantic import AnyHttpUrl, BaseModel, SecretStr, field_validator, model_validator
@@ -122,6 +123,11 @@ class KonaChallengeItem(BaseModel):
         return self
 
 
+class KonaRolloutRestartConfig(BaseModel):
+    annotation_path: str | None = None
+    image: bool = True
+
+
 class KonaChallengeConfig(BaseModel):
     class DiscoveryConfig(BaseModel):
         skip: bool = False
@@ -134,13 +140,22 @@ class KonaChallengeConfig(BaseModel):
             registry_name: str | None = None
             build_args: dict[str, str] = {}
             platform: str | None = None
+            no_cache: bool = False
 
         class KonaKubernetesManifest(BaseModel):
             paths: list[str]
             cluster_name: str | None = None
+            rollout_restart: KonaRolloutRestartConfig = KonaRolloutRestartConfig()
+
+        class KonaKubernetesInlineManifest(BaseModel):
+            documents: list[dict[str, Any]]
+            cluster_name: str | None = None
+            rollout_restart: KonaRolloutRestartConfig = KonaRolloutRestartConfig()
 
         images: list[DockerImage] = []
+        # TODO(es3n1n): rename kubernetes_inline_manifests to just kubernetes_manifests
         kubernetes_manifests: list[KonaKubernetesManifest] = []
+        kubernetes_inline_manifests: list[KonaKubernetesInlineManifest] = []
 
     discovery: DiscoveryConfig = DiscoveryConfig()
     challenges: list[KonaChallengeItem] = []
@@ -256,11 +271,24 @@ unknown endpoint type {{ endpoint.type }}
         return v.strip()
 
 
+class KonaGcloudClusterConfig(BaseModel):
+    cluster_name: str
+    project: str
+    zone: str
+
+
+class KonaKindClusterConfig(BaseModel):
+    cluster_name: str = 'kind'
+
+
 class KonaKubernetesClusterConfig(BaseModel):
     incluster: bool = False
     # KUBECONFIG or ~/.kube/config
     use_default: bool = True
     kubeconfig: KonaSecretOrValue | None = None
+    gcloud: KonaGcloudClusterConfig | None = None
+    kind: KonaKindClusterConfig | None = None
+    alias_to: str | list[str] | None = None
 
 
 class KonaGlobalConfig(BaseModel):
@@ -271,3 +299,4 @@ class KonaGlobalConfig(BaseModel):
     templates: KonaTemplatesConfig = KonaTemplatesConfig()
     registries: dict[str, str] = {}
     clusters: dict[str, KonaKubernetesClusterConfig] = {}
+    domains: dict[str, str] = {}
