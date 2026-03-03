@@ -101,6 +101,7 @@ async def try_discover_challenges(
     depth: int = 0,
     is_root: bool = False,
     external_providers: list[ExternalProviderABC],
+    challenge_filter: set[Path] | None = None,
 ) -> None:
     if depth > config.discovery.challenge_folder_depth:
         return
@@ -109,7 +110,10 @@ async def try_discover_challenges(
     if not is_root:
         challenge_schema = try_load_schema(path, model=KonaChallengeConfig)
         if challenge_schema is not None:
-            await sync_challenge(result, config, path, challenge_schema, external_providers)
+            if challenge_filter is not None and path.resolve() not in challenge_filter:
+                logger.debug(f'Skipping {path} (not in --only filter)')
+            else:
+                await sync_challenge(result, config, path, challenge_schema, external_providers)
 
     # Look for challenges in nested folders
     for item in path.iterdir():
@@ -119,10 +123,19 @@ async def try_discover_challenges(
         except OSError as err:
             logger.warning(f'Skipping folder {item} due to {err}')
             continue
-        await try_discover_challenges(result, item, config, depth=depth + 1, external_providers=external_providers)
+        await try_discover_challenges(
+            result,
+            item,
+            config,
+            depth=depth + 1,
+            external_providers=external_providers,
+            challenge_filter=challenge_filter,
+        )
 
 
-async def sync(root_path: Path, config: KonaGlobalConfig) -> SyncResult:
+async def sync(
+    root_path: Path, config: KonaGlobalConfig, *, only_challenges: tuple[str, ...] | None = None
+) -> SyncResult:
     result = SyncResult()
     external_providers: list[ExternalProviderABC] = []
 
@@ -142,6 +155,19 @@ async def sync(root_path: Path, config: KonaGlobalConfig) -> SyncResult:
     if len(config.clusters) == 1:
         load_kubeconfig(config, next(iter(config.clusters.keys())))
 
+    # Resolve challenge filter
+    challenge_filter: set[Path] | None = None
+    if only_challenges is not None:
+        challenge_filter = {(root_path / p).resolve() for p in only_challenges}
+        logger.info(f'Filtering to {len(challenge_filter)} challenge(s): {", ".join(only_challenges)}')
+
     # Discover challenges
-    await try_discover_challenges(result, root_path, config, external_providers=external_providers, is_root=True)
+    await try_discover_challenges(
+        result,
+        root_path,
+        config,
+        external_providers=external_providers,
+        is_root=True,
+        challenge_filter=challenge_filter,
+    )
     return result

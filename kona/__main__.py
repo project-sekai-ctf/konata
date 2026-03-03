@@ -20,13 +20,14 @@ except ImportError:
     from asyncio import run  # type: ignore[no-redef]
 
 
-async def job(deploy_directory: str) -> None:
+async def job(deploy_directory: str, only: tuple[str, ...] = ()) -> None:
     kona_global_state.root_path = Path(deploy_directory).resolve().absolute()
     logger.info(f'Starting in {kona_global_state.root_path}')
     logger.info(f'Included {include_passes()} passes')
 
+    only_challenges: tuple[str, ...] | None = only if only else None
     kona_config = load_schema(kona_global_state.root_path, model=KonaGlobalConfig)
-    sync_result = await sync(kona_global_state.root_path, kona_config)
+    sync_result = await sync(kona_global_state.root_path, kona_config, only_challenges=only_challenges)
 
     context = AnalysisContext(
         global_config=kona_config,
@@ -52,9 +53,15 @@ def main() -> None:
     type=click.Path(exists=True, file_okay=False),
     required=True,
 )
+@click.option(
+    '--only',
+    'only',
+    multiple=True,
+    help='Only sync specific challenge directories (paths relative to deploy-directory).',
+)
 @logger.catch
-def sync_cmd(deploy_directory: str) -> None:
-    run(job(deploy_directory))
+def sync_cmd(deploy_directory: str, only: tuple[str, ...]) -> None:
+    run(job(deploy_directory, only=only))
 
 
 @main.command('compress')
