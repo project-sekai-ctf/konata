@@ -35,7 +35,9 @@ def generic_diff(left: list[str] | bytes | str, right: list[str] | bytes | str) 
 
 def diff(left: bytes, right: bytes) -> tuple[CountedDifferencesType, int]:
     if looks_like_text(left) and looks_like_text(right):
-        return CountedDifferencesType.LINES, generic_diff(left.decode().splitlines(), right.decode().splitlines())
+        return CountedDifferencesType.LINES, generic_diff(
+            left.decode('utf-8', errors='ignore').splitlines(), right.decode('utf-8', errors='ignore').splitlines()
+        )
     return CountedDifferencesType.BYTES, generic_diff(left, right)
 
 

@@ -7,13 +7,13 @@ from loguru import logger
 from kona.core.deployment import DeploymentResult, deploy_challenge
 from kona.core.k8s_manifest_discovery import discover_deployed_endpoints
 from kona.core.kubernetes import load_kubeconfig
+from kona.core.provide import resolve_attachments, resolve_source_paths
 from kona.external.abc import ExternalProviderABC
 from kona.external.ctfd import CTFDProvider
 from kona.external.rctf import RCTFProvider
 from kona.schema.models import KonaChallengeConfig, KonaChallengeItem, KonaGlobalConfig
 from kona.schema.parsers import try_load_schema
 from kona.util.jinja import render_template
-from kona.util.tar import make_tar_gz
 
 
 @dataclass
@@ -61,6 +61,7 @@ async def sync_challenge(
 
     # Sync challenge to the providers
     for chal in challenge.challenges:
+        chal.resolve_flags(path)
         _postprocess_endpoints(config, challenge, chal)
 
         out_chal = SynchronizedChallenge()
@@ -73,21 +74,17 @@ async def sync_challenge(
                 config.templates.endpoints_text, challenge=chal, challenges=challenge.challenges, config=config
             ),
         )
-        out_chal.attachments = [(path / item) for item in chal.attachments]
+        out_chal.attachments = resolve_source_paths(path, chal.attachments)
 
         with TemporaryDirectory() as tmp_dir:
-            attachments_path: Path | None = None
-            if chal.attachments:
-                # TODO(es3n1n): instead of doing challenge id maybe render a template here?
-                attachments_path = Path(tmp_dir) / f'{chal.challenge_id}.tar.gz'
-                make_tar_gz(
-                    attachments_path,
-                    out_chal.attachments,
-                )
-                logger.info(f'Created attachments tarball at {attachments_path}')
+            attachment_paths = resolve_attachments(
+                path, Path(tmp_dir), chal.attachments, config.attachment_format, chal.challenge_id
+            )
+            if attachment_paths:
+                logger.info(f'Resolved {len(attachment_paths)} attachment(s) for {chal.challenge_id}')
 
             for provider in external_providers:
-                await provider.sync_challenge(chal, attachments_path, out_chal.description)
+                await provider.sync_challenge(chal, attachment_paths, out_chal.description)
                 # challenges were updated, refresh the local cache
                 await provider.setup()
 

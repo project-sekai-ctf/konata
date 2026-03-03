@@ -83,12 +83,15 @@ class RCTFProvider(ExternalProviderABC):
             return r.json()['data'][0]
 
     async def sync_challenge(
-        self, challenge: KonaChallengeItem, attachment_path: Path | None, rendered_description: str
+        self, challenge: KonaChallengeItem, attachment_paths: list[Path], rendered_description: str
     ) -> None:
+        uploaded_files: list[dict[str, str]] = [
+            await self._upload_file(attachment_path) for attachment_path in attachment_paths
+        ]
         challenge_dict = {
             'flag': challenge.flags.rctf,
             'name': challenge.name,
-            'files': [],
+            'files': uploaded_files,
             'author': challenge.author,
             'points': {
                 'max': challenge.scoring.initial_value,
@@ -98,9 +101,6 @@ class RCTFProvider(ExternalProviderABC):
             'description': rendered_description,
             'tiebreakEligible': challenge.scoring.rctf.eligible_for_tiebreaks,
         }
-
-        if attachment_path is not None:
-            challenge_dict['files'] = [await self._upload_file(attachment_path)]
 
         # TODO(es3n1n): cleanup previous attachments if changed
 

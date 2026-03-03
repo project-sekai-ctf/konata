@@ -11,6 +11,6 @@ class ExternalProviderABC(ABC):
 
     @abstractmethod
     async def sync_challenge(
-        self, challenge: KonaChallengeItem, attachment_path: Path | None, rendered_description: str
+        self, challenge: KonaChallengeItem, attachment_paths: list[Path], rendered_description: str
     ) -> None:
         pass

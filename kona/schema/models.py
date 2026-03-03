@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from loguru import logger
-from pydantic import AnyHttpUrl, BaseModel, SecretStr, field_validator, model_validator
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
 
 @dataclass
@@ -23,6 +23,51 @@ class KonaEndpointType(StrEnum):
     SOCAT = 'socat'
     NC = 'nc'
     NCAT_SSL = 'ncat-ssl'
+
+
+class AttachmentAdditionalFile(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    path: str
+    str_content: str | None = Field(default=None, alias='str')
+    base64_content: str | None = Field(default=None, alias='base64')
+
+    @model_validator(mode='after')
+    def exactly_one_content(self) -> 'AttachmentAdditionalFile':
+        has_str = self.str_content is not None
+        has_b64 = self.base64_content is not None
+        if has_str == has_b64:
+            msg = 'exactly one of str or base64 must be provided'
+            raise ValueError(msg)
+        return self
+
+
+class AttachmentConfig(BaseModel):
+    files: list[str] = []
+    exclude: list[str] = []
+    additional: list[AttachmentAdditionalFile] = []
+    pre_compressed: list[str] = []
+
+
+class FlagValue(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    str_content: str | None = Field(default=None, alias='str')
+    file: str | None = None
+
+    @model_validator(mode='after')
+    def exactly_one_source(self) -> 'FlagValue':
+        has_str = self.str_content is not None
+        has_file = self.file is not None
+        if has_str == has_file:
+            msg = 'exactly one of str or file must be provided'
+            raise ValueError(msg)
+        return self
+
+    def resolve(self, challenge_dir: Path) -> str:
+        if self.str_content is not None:
+            return self.str_content
+        if self.file is not None:
+            return (challenge_dir / self.file).read_text().strip()
+        raise RuntimeError
 
 
 class KonaChallengeItem(BaseModel):
@@ -60,9 +105,9 @@ class KonaChallengeItem(BaseModel):
     class Flags(BaseModel):
         class CTFDFlag(BaseModel):
             type: str = 'static'
-            flag: str
+            flag: str | FlagValue
 
-        rctf: str = ''
+        rctf: str | FlagValue = ''
         ctfd: list[CTFDFlag] = []
 
     class Endpoint(BaseModel):
@@ -90,7 +135,7 @@ class KonaChallengeItem(BaseModel):
 
     description: str = ''
 
-    attachments: list[str] = []
+    attachments: list[str] | AttachmentConfig = []
 
     scoring: Scoring = Scoring()
     flags: Flags = Flags()
@@ -118,9 +163,21 @@ class KonaChallengeItem(BaseModel):
 
     @model_validator(mode='after')
     def warn_attachments(self) -> 'KonaChallengeItem':
-        if not self.attachments:
+        has_attachments = (
+            bool(self.attachments)
+            if isinstance(self.attachments, list)
+            else bool(self.attachments.files or self.attachments.pre_compressed)
+        )
+        if not has_attachments:
             logger.warning(f'No attachments set for challenge {self.challenge_id}')
         return self
+
+    def resolve_flags(self, challenge_dir: Path) -> None:
+        if isinstance(self.flags.rctf, FlagValue):
+            self.flags.rctf = self.flags.rctf.resolve(challenge_dir)
+        for flag in self.flags.ctfd:
+            if isinstance(flag.flag, FlagValue):
+                flag.flag = flag.flag.resolve(challenge_dir)
 
 
 class KonaRolloutRestartConfig(BaseModel):
@@ -291,6 +348,11 @@ class KonaKubernetesClusterConfig(BaseModel):
     alias_to: str | list[str] | None = None
 
 
+class AttachmentFormat(StrEnum):
+    TAR_GZ = 'tar_gz'
+    ZIP = 'zip'
+
+
 class KonaGlobalConfig(BaseModel):
     discovery: KonaDiscoveryConfig = KonaDiscoveryConfig()
     secrets: dict[str, KonaSecret] = {}
@@ -300,3 +362,4 @@ class KonaGlobalConfig(BaseModel):
     registries: dict[str, str] = {}
     clusters: dict[str, KonaKubernetesClusterConfig] = {}
     domains: dict[str, str] = {}
+    attachment_format: AttachmentFormat = AttachmentFormat.TAR_GZ

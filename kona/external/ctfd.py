@@ -101,7 +101,7 @@ class CTFDProvider(ExternalProviderABC):
             return r.json()['data']
 
     async def _create_challenge(
-        self, challenge: KonaChallengeItem, attachment_path: Path | None, challenge_dict: dict
+        self, challenge: KonaChallengeItem, attachment_paths: list[Path], challenge_dict: dict
     ) -> None:
         async with self._client as client:
             r = await client.post(
@@ -149,7 +149,7 @@ class CTFDProvider(ExternalProviderABC):
             client.headers.pop('Content-Type', None)
 
             # files
-            if attachment_path is not None:
+            for attachment_path in attachment_paths:
                 r = await client.post(
                     '/api/v1/files',
                     data={
@@ -163,7 +163,7 @@ class CTFDProvider(ExternalProviderABC):
                     raise RuntimeError
 
     async def _update_challenge(
-        self, challenge: KonaChallengeItem, attachment_path: Path | None, challenge_dict: dict, current_challenge: dict
+        self, challenge: KonaChallengeItem, attachment_paths: list[Path], challenge_dict: dict, current_challenge: dict
     ) -> None:
         # Initial patch if needed
         if any(challenge_dict[x] != current_challenge[x] for x in challenge_dict):
@@ -275,17 +275,14 @@ class CTFDProvider(ExternalProviderABC):
             r.raise_for_status()
 
             server_files: list[dict] = r.json()['data']
-            local_files: list[dict] = (
-                [
-                    {
-                        'sha1sum': hashlib.sha1(attachment_path.read_bytes(), usedforsecurity=False).hexdigest(),
-                        'name': attachment_path.name,
-                        'data': attachment_path.read_bytes(),
-                    }
-                ]
-                if attachment_path
-                else []
-            )
+            local_files: list[dict] = [
+                {
+                    'sha1sum': hashlib.sha1(ap.read_bytes(), usedforsecurity=False).hexdigest(),
+                    'name': ap.name,
+                    'data': ap.read_bytes(),
+                }
+                for ap in attachment_paths
+            ]
 
             add_files, remove_files = filter_items(server_files, local_files, keys=['sha1sum'])
             for remove_file in remove_files:
@@ -314,7 +311,7 @@ class CTFDProvider(ExternalProviderABC):
                 )
 
     async def sync_challenge(
-        self, challenge: KonaChallengeItem, attachment_path: Path | None, rendered_description: str
+        self, challenge: KonaChallengeItem, attachment_paths: list[Path], rendered_description: str
     ) -> None:
         challenge_dict = {
             'name': challenge.name,
@@ -348,8 +345,8 @@ class CTFDProvider(ExternalProviderABC):
 
         if existing_challenge:
             logger.info(f'Challenge {challenge.challenge_id} already exists in CTFd with ID {existing_challenge["id"]}')
-            await self._update_challenge(challenge, attachment_path, challenge_dict, existing_challenge)
+            await self._update_challenge(challenge, attachment_paths, challenge_dict, existing_challenge)
             return
 
         logger.info(f'Challenge {challenge.challenge_id} does not exist in CTFd, creating it')
-        await self._create_challenge(challenge, attachment_path, challenge_dict)
+        await self._create_challenge(challenge, attachment_paths, challenge_dict)
