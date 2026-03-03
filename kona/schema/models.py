@@ -284,11 +284,13 @@ class KonaSecretOrValue(BaseModel):
 class KonaRCTFCredentials(BaseModel):
     base_url: AnyHttpUrl
     team_token: KonaSecretOrValue
+    extra_headers: dict[str, str] = {}
 
 
 class KonaCTFDCredentials(BaseModel):
     base_url: AnyHttpUrl
     admin_token: KonaSecretOrValue
+    extra_headers: dict[str, str] = {}
 
 
 class KonaDiscoveryConfig(BaseModel):

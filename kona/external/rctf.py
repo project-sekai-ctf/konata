@@ -20,7 +20,7 @@ class RCTFProvider(ExternalProviderABC):
 
     @property
     def _client(self) -> AsyncClient:
-        headers = {}
+        headers = dict(self.credentials.extra_headers)
         if self.bearer_token is not None:
             headers['Authorization'] = f'Bearer {self.bearer_token}'
         return AsyncClient(

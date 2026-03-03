@@ -82,6 +82,7 @@ class CTFDProvider(ExternalProviderABC):
         return AsyncClient(
             base_url=str(self.credentials.base_url),
             headers={
+                **self.credentials.extra_headers,
                 'Authorization': f'Token {self.admin_token}',
                 'Content-Type': 'application/json',  # very important, lol...
             },
