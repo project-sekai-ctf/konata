@@ -59,7 +59,7 @@ def main() -> None:
     multiple=True,
     help='Only sync specific challenge directories (paths relative to deploy-directory).',
 )
-@logger.catch
+@logger.catch(reraise=True)
 def sync_cmd(deploy_directory: str, only: tuple[str, ...]) -> None:
     run(job(deploy_directory, only=only))
 
@@ -81,7 +81,7 @@ def sync_cmd(deploy_directory: str, only: tuple[str, ...]) -> None:
     type=click.Path(),
     default=None,
 )
-@logger.catch
+@logger.catch(reraise=True)
 def compress_cmd(path: str, fmt: str, output_path: str | None) -> None:
     source = Path(path).resolve()
     attachment_fmt = AttachmentFormat(fmt)
