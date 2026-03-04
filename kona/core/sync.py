@@ -66,7 +66,12 @@ async def sync_challenge(
 
         if chal.instancer_config is not None:
             ctx = build_manifest_context(config, deployment_result, challenge.deployment, challenge.challenges)
+            chal.instancer_config.challenge_integration_id = render_template(
+                chal.instancer_config.challenge_integration_id, **ctx
+            )
             chal.instancer_config.config = render_template_values(chal.instancer_config.config, **ctx)
+            for expose in chal.instancer_config.expose:
+                expose.host_prefix = render_template(expose.host_prefix, **ctx)
 
         out_chal = SynchronizedChallenge()
         out_chal.description = render_template(

@@ -107,6 +107,18 @@ class RCTFProvider(ExternalProviderABC):
             challenge_dict['instancerConfig'] = {
                 'challengeIntegrationId': challenge.instancer_config.challenge_integration_id,
                 'config': challenge.instancer_config.config,
+                'expose': [
+                    {
+                        'kind': expose.kind.value,
+                        'hostPrefix': expose.host_prefix,
+                        'containerName': expose.container_name,
+                        'containerPort': expose.container_port,
+                        'shouldDisplay': expose.should_display,
+                        **(({'title': expose.title}) if expose.title is not None else {}),
+                    }
+                    for expose in challenge.instancer_config.expose
+                ],
+                'timeoutMilliseconds': challenge.instancer_config.timeout_milliseconds,
             }
 
         # TODO(es3n1n): cleanup previous attachments if changed

@@ -111,8 +111,24 @@ class KonaChallengeItem(BaseModel):
         ctfd: list[CTFDFlag] = []
 
     class InstancerConfig(BaseModel):
+        class ExposeKind(StrEnum):
+            TCP = 'tcp'
+            TCP_SSL = 'tcp-ssl'
+            HTTP = 'http'
+            HTTPS = 'https'
+
+        class Expose(BaseModel):
+            kind: 'KonaChallengeItem.InstancerConfig.ExposeKind'
+            host_prefix: str
+            container_name: str
+            container_port: int
+            should_display: bool = True
+            title: str | None = None
+
         challenge_integration_id: str
         config: Any = {}
+        expose: list[Expose] = []
+        timeout_milliseconds: int | None = None
 
     class Endpoint(BaseModel):
         name: str | None = None
