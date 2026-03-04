@@ -114,12 +114,14 @@ class RCTFProvider(ExternalProviderABC):
                         'containerName': expose.container_name,
                         'containerPort': expose.container_port,
                         'shouldDisplay': expose.should_display,
-                        **(({'title': expose.title}) if expose.title is not None else {}),
+                        'title': expose.title,
                     }
                     for expose in challenge.instancer_config.expose
                 ],
                 'timeoutMilliseconds': challenge.instancer_config.timeout_milliseconds,
             }
+        else:
+            challenge_dict['instancerConfig'] = None
 
         # TODO(es3n1n): cleanup previous attachments if changed
 
