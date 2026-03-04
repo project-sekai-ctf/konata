@@ -23,15 +23,15 @@ kona is a CTF tool for managing challenges and deploying them across multiple CT
 - [x] diff binaries in attachments and in challenge dir
 - [x] Option to not compress attachments and attach as-is
 - [x] kCTF support
-- [ ] Command to compress the folder
-- [ ] Option to pass already compressed attachments
+- [x] Command to compress the folder
+- [x] Option to pass already compressed attachments
+- [x] test docker/k8s gcloud auth stuff, should be fineTM though
+- [x] github ci action - run only changed stuff
 - [ ] Set flag format in global config and grep for it in all .txt, .cfg, .json, .toml, .yaml within attachments
 - [ ] better diff displaying
 - [ ] discord webhook for logs
 - [ ] delete challenges that are missing in repo (should be opt-in)
 - [ ] cover with tests
-- [ ] test docker/k8s gcloud auth stuff, should be fineTM though
-- [ ] github ci action - run only changed stuff
 - [ ] documentation
 
 ## Acknowledgements
