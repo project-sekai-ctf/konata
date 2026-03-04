@@ -110,6 +110,10 @@ class KonaChallengeItem(BaseModel):
         rctf: str | FlagValue = ''
         ctfd: list[CTFDFlag] = []
 
+    class InstancerConfig(BaseModel):
+        challenge_integration_id: str
+        config: Any = {}
+
     class Endpoint(BaseModel):
         name: str | None = None
         type: KonaEndpointType
@@ -142,6 +146,7 @@ class KonaChallengeItem(BaseModel):
     endpoints: list[Endpoint] = []
 
     ctfd: CTFD = CTFD()
+    instancer_config: InstancerConfig | None = None
 
     @property
     def challenge_id(self) -> str:

@@ -15,7 +15,7 @@ from kubernetes.dynamic.exceptions import ResourceNotFoundError
 from loguru import logger
 
 from kona.schema.models import KonaChallengeConfig, KonaGlobalConfig
-from kona.util.jinja import render_template
+from kona.util.jinja import render_template, render_template_values
 
 from .kubernetes import load_kubeconfig, resolve_cluster_names
 
@@ -155,7 +155,7 @@ def _to_dict(obj: Any) -> dict[str, Any]:  # noqa: ANN401
     return obj.to_dict() if hasattr(obj, 'to_dict') else obj
 
 
-def _build_manifest_context(
+def build_manifest_context(
     config: KonaGlobalConfig,
     result: DeploymentResult,
     deployment_config: KonaChallengeConfig.ChallengeDeploymentConfig,
@@ -175,16 +175,6 @@ def _build_manifest_context(
         'config': config,
         'challenges': challenges,
     }
-
-
-def _render_manifest_values(obj: Any, context: dict[str, Any]) -> Any:  # noqa: ANN401
-    if isinstance(obj, str):
-        return render_template(obj, **context)
-    if isinstance(obj, dict):
-        return {k: _render_manifest_values(v, context) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_render_manifest_values(v, context) for v in obj]
-    return obj
 
 
 def _k8s_get_resource(dyn: DynamicClient, api_version: str, kind: str) -> Any:  # noqa: ANN401
@@ -312,7 +302,7 @@ async def k8s_apply_manifests(
     challenges: list,
 ) -> None:
     for manifest in deployment_config.kubernetes_manifests:
-        manifest_context = _build_manifest_context(
+        manifest_context = build_manifest_context(
             config, result, deployment_config, challenges, use_image_digest=manifest.rollout_restart.image
         )
         items = [
@@ -332,13 +322,13 @@ async def k8s_apply_inline_manifests(
     challenges: list,
 ) -> None:
     for manifest in deployment_config.kubernetes_inline_manifests:
-        manifest_context = _build_manifest_context(
+        manifest_context = build_manifest_context(
             config, result, deployment_config, challenges, use_image_digest=manifest.rollout_restart.image
         )
         items = [
             item
             for doc in manifest.documents
-            for item in k8s_expand_manifest(_render_manifest_values(doc, manifest_context))
+            for item in k8s_expand_manifest(render_template_values(doc, **manifest_context))
         ]
         _inject_rollout_annotation(items, manifest.rollout_restart.annotation_path)
         await _k8s_apply_items(result, config, manifest.cluster_name, items)

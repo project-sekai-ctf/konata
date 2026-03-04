@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 
 from loguru import logger
 
-from kona.core.deployment import DeploymentResult, deploy_challenge
+from kona.core.deployment import DeploymentResult, build_manifest_context, deploy_challenge
 from kona.core.k8s_manifest_discovery import discover_deployed_endpoints
 from kona.core.kubernetes import load_kubeconfig
 from kona.core.provide import resolve_attachments, resolve_source_paths
@@ -13,7 +13,7 @@ from kona.external.ctfd import CTFDProvider
 from kona.external.rctf import RCTFProvider
 from kona.schema.models import KonaChallengeConfig, KonaChallengeItem, KonaGlobalConfig
 from kona.schema.parsers import try_load_schema
-from kona.util.jinja import render_template
+from kona.util.jinja import render_template, render_template_values
 
 
 @dataclass
@@ -63,6 +63,10 @@ async def sync_challenge(
     for chal in challenge.challenges:
         chal.resolve_flags(path)
         _postprocess_endpoints(config, challenge, chal)
+
+        if chal.instancer_config is not None:
+            ctx = build_manifest_context(config, deployment_result, challenge.deployment, challenge.challenges)
+            chal.instancer_config.config = render_template_values(chal.instancer_config.config, **ctx)
 
         out_chal = SynchronizedChallenge()
         out_chal.description = render_template(

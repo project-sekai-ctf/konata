@@ -1,6 +1,7 @@
 import hashlib
 from io import BytesIO
 from pathlib import Path
+from typing import Any
 from urllib.parse import quote
 
 from httpx import AsyncClient, Timeout
@@ -88,7 +89,7 @@ class RCTFProvider(ExternalProviderABC):
         uploaded_files: list[dict[str, str]] = [
             await self._upload_file(attachment_path) for attachment_path in attachment_paths
         ]
-        challenge_dict = {
+        challenge_dict: dict[str, Any] = {
             'flag': challenge.flags.rctf,
             'name': challenge.name,
             'files': uploaded_files,
@@ -101,6 +102,12 @@ class RCTFProvider(ExternalProviderABC):
             'description': rendered_description,
             'tiebreakEligible': challenge.scoring.rctf.eligible_for_tiebreaks,
         }
+
+        if challenge.instancer_config is not None:
+            challenge_dict['instancerConfig'] = {
+                'challengeIntegrationId': challenge.instancer_config.challenge_integration_id,
+                'config': challenge.instancer_config.config,
+            }
 
         # TODO(es3n1n): cleanup previous attachments if changed
 
