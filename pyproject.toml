@@ -9,7 +9,7 @@ authors = [
     {name = "es3n1n", email = "git@es3n1n.im"}
 ]
 license = "Apache-2.0"
-version = "0.0.6"
+version = "0.0.7"
 requires-python = ">=3.12"
 dependencies = [
     "click>=8.3.1",
