@@ -1,4 +1,5 @@
 import asyncio
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -83,6 +84,8 @@ def docker_push_image(env: docker.DockerClient, repository: str, tag: str) -> st
     # https://github.com/docker/docker-py/issues/3348#issuecomment-3224418755
     push_kwargs: dict[str, Any] = {}
     max_attempts = 5
+    backoff_base_seconds = 2
+    max_backoff_seconds = 30
 
     # thanks gcp for failing with errors `reset reason: overflow`
     for attempt in range(max_attempts):
@@ -109,6 +112,11 @@ def docker_push_image(env: docker.DockerClient, repository: str, tag: str) -> st
             return digest
 
         logger.warning(f'Push attempt {attempt + 1}/{max_attempts} failed: {error}')
+        if attempt < max_attempts - 1:
+            delay = min(backoff_base_seconds**attempt, max_backoff_seconds)
+            logger.info(f'Retrying docker push in {delay}s')
+            time.sleep(delay)
+
         if attempt == 0 and 'IncompleteRead' in error:
             logger.debug('Retrying push with empty auth_config (Docker 28.3.3+ workaround)')
             push_kwargs['auth_config'] = {}
