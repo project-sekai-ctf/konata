@@ -120,6 +120,7 @@ class RCTFProvider(ExternalProviderABC):
                     for expose in challenge.instancer_config.expose
                 ],
                 'timeoutMilliseconds': challenge.instancer_config.timeout_milliseconds,
+                'extendable': challenge.instancer_config.extendable,
             }
         else:
             challenge_dict['instancerConfig'] = None

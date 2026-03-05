@@ -129,6 +129,7 @@ class KonaChallengeItem(BaseModel):
         config: Any = {}
         expose: list[Expose] = []
         timeout_milliseconds: int | None = None
+        extendable: bool = True
 
     class Endpoint(BaseModel):
         name: str | None = None
