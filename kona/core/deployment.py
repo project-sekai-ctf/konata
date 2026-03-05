@@ -82,30 +82,39 @@ def docker_push_image(env: docker.DockerClient, repository: str, tag: str) -> st
     # which rejects pushes without an X-Registry-Auth header.
     # https://github.com/docker/docker-py/issues/3348#issuecomment-3224418755
     push_kwargs: dict[str, Any] = {}
+    max_attempts = 5
 
-    for attempt in range(2):
+    # thanks gcp for failing with errors `reset reason: overflow`
+    for attempt in range(max_attempts):
         error: str | None = None
         digest: str | None = None
-        for line in env.images.push(
-            repository=repository,
-            tag=tag,
-            stream=True,
-            decode=True,
-            **push_kwargs,
-        ):
-            if 'error' in line:
-                error = line['error']
-                break
-            if 'aux' in line:
-                digest = line['aux'].get('Digest')
-            logger.debug(str(line).strip())
+        try:
+            for line in env.images.push(
+                repository=repository,
+                tag=tag,
+                stream=True,
+                decode=True,
+                **push_kwargs,
+            ):
+                if 'error' in line:
+                    error = line['error']
+                    break
+                if 'aux' in line:
+                    digest = line['aux'].get('Digest')
+                logger.debug(str(line).strip())
+        except docker.errors.DockerException as exc:
+            error = str(exc)
 
         if error is None:
             return digest
 
+        logger.warning(f'Push attempt {attempt + 1}/{max_attempts} failed: {error}')
         if attempt == 0 and 'IncompleteRead' in error:
             logger.debug('Retrying push with empty auth_config (Docker 28.3.3+ workaround)')
             push_kwargs['auth_config'] = {}
+            continue
+
+        if attempt < max_attempts - 1:
             continue
 
         raise RuntimeError(error)
