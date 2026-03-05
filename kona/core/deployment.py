@@ -41,6 +41,17 @@ def docker_env() -> docker.DockerClient:
     return docker.from_env()
 
 
+def docker_pull_for_cache(env: docker.DockerClient, full_ref: str) -> bool:
+    try:
+        env.images.pull(full_ref)
+    except docker.errors.APIError:
+        logger.debug(f'Could not pull {full_ref} for cache (not found or not accessible)')
+        return False
+    else:
+        logger.info(f'Pulled {full_ref} for cache')
+        return True
+
+
 def docker_build_image(
     env: docker.DockerClient,
     context_dir: Path,
@@ -49,6 +60,7 @@ def docker_build_image(
     platform: str | None,
     *,
     no_cache: bool,
+    cache_from: list[str] | None = None,
 ) -> None:
     _, logs = env.images.build(
         path=str(context_dir),
@@ -58,6 +70,7 @@ def docker_build_image(
         forcerm=True,
         buildargs=build_args,
         platform=platform,
+        cache_from=cache_from,
     )
     for line in logs:
         logger.debug(str(line).strip())
@@ -125,6 +138,12 @@ async def docker_build_images(
 
         logger.info(f'Building {full_ref} for {image.name}:{image.tag}')
 
+        cache_from: list[str] | None = None
+        if image.registry_name and not image.no_cache:
+            pulled = await asyncio.to_thread(docker_pull_for_cache, env, full_ref)
+            if pulled:
+                cache_from = [full_ref]
+
         await asyncio.to_thread(
             docker_build_image,
             env=env,
@@ -133,6 +152,7 @@ async def docker_build_images(
             build_args=image.build_args,
             platform=image.platform,
             no_cache=image.no_cache,
+            cache_from=cache_from,
         )
 
         digest: str | None = None

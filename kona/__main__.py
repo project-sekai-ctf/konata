@@ -20,14 +20,24 @@ except ImportError:
     from asyncio import run  # type: ignore[no-redef]
 
 
-async def job(deploy_directory: str, only: tuple[str, ...] = ()) -> None:
+async def job(
+    deploy_directory: str,
+    only: tuple[str, ...] = (),
+    challenge_paths: tuple[str, ...] = (),
+) -> None:
     kona_global_state.root_path = Path(deploy_directory).resolve().absolute()
     logger.info(f'Starting in {kona_global_state.root_path}')
     logger.info(f'Included {include_passes()} passes')
 
     only_challenges: tuple[str, ...] | None = only if only else None
+    resolved_paths: tuple[str, ...] | None = challenge_paths if challenge_paths else None
     kona_config = load_schema(kona_global_state.root_path, model=KonaGlobalConfig)
-    sync_result = await sync(kona_global_state.root_path, kona_config, only_challenges=only_challenges)
+    sync_result = await sync(
+        kona_global_state.root_path,
+        kona_config,
+        only_challenges=only_challenges,
+        challenge_paths=resolved_paths,
+    )
 
     context = AnalysisContext(
         global_config=kona_config,
@@ -59,9 +69,15 @@ def main() -> None:
     multiple=True,
     help='Only sync specific challenge directories (paths relative to deploy-directory).',
 )
+@click.option(
+    '--challenge-path',
+    'challenge_paths',
+    multiple=True,
+    help='Direct paths to challenge directories (skips discovery).',
+)
 @logger.catch(reraise=True)
-def sync_cmd(deploy_directory: str, only: tuple[str, ...]) -> None:
-    run(job(deploy_directory, only=only))
+def sync_cmd(deploy_directory: str, only: tuple[str, ...], challenge_paths: tuple[str, ...]) -> None:
+    run(job(deploy_directory, only=only, challenge_paths=challenge_paths))
 
 
 @main.command('compress')

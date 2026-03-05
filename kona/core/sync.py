@@ -135,7 +135,11 @@ async def try_discover_challenges(
 
 
 async def sync(
-    root_path: Path, config: KonaGlobalConfig, *, only_challenges: tuple[str, ...] | None = None
+    root_path: Path,
+    config: KonaGlobalConfig,
+    *,
+    only_challenges: tuple[str, ...] | None = None,
+    challenge_paths: tuple[str, ...] | None = None,
 ) -> SyncResult:
     result = SyncResult()
     external_providers: list[ExternalProviderABC] = []
@@ -155,6 +159,17 @@ async def sync(
     # Set the kubeconfig if there's only one available
     if len(config.clusters) == 1:
         load_kubeconfig(config, next(iter(config.clusters.keys())))
+
+    if challenge_paths is not None:
+        logger.info(f'Loading {len(challenge_paths)} challenge(s) directly (skipping discovery)')
+        for p in challenge_paths:
+            path = (root_path / p).resolve()
+            challenge_schema = try_load_schema(path, model=KonaChallengeConfig)
+            if challenge_schema is None:
+                logger.warning(f'No challenge config found at {path}, skipping')
+                continue
+            await sync_challenge(result, config, path, challenge_schema, external_providers)
+        return result
 
     # Resolve challenge filter
     challenge_filter: set[Path] | None = None
