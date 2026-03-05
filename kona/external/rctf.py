@@ -8,6 +8,7 @@ from httpx import AsyncClient, Timeout
 from loguru import logger
 
 from kona.schema.models import KonaChallengeItem, KonaGlobalConfig, KonaRCTFCredentials
+from kona.util.http import raise_for_status
 
 from .abc import ExternalProviderABC
 
@@ -41,13 +42,13 @@ class RCTFProvider(ExternalProviderABC):
                         'teamToken': self.credentials.team_token.load(global_config=self.global_config),
                     },
                 )
-                r.raise_for_status()
+                raise_for_status(r)
                 self.bearer_token = r.json()['data']['authToken']
                 logger.info('Authenticated in rCTF')
 
         async with self._client as client:
             r = await client.get('/api/v1/admin/challs')
-            r.raise_for_status()
+            raise_for_status(r)
             self.challenges_on_remote = r.json()['data']
         logger.info(f'Retrieved {len(self.challenges_on_remote)} rCTF challenges from remote')
 
@@ -65,7 +66,7 @@ class RCTFProvider(ExternalProviderABC):
                     ]
                 },
             )
-            r.raise_for_status()
+            raise_for_status(r)
             upload_info = r.json()['data']
             if upload_info and upload_info[0]['url']:
                 logger.info(f'File {file.name} is already uploaded to rCTF')
@@ -80,7 +81,7 @@ class RCTFProvider(ExternalProviderABC):
                     'files': (file.name, BytesIO(file.read_bytes()), 'application/binary'),
                 },
             )
-            r.raise_for_status()
+            raise_for_status(r)
             return r.json()['data'][0]
 
     async def sync_challenge(
@@ -146,5 +147,5 @@ class RCTFProvider(ExternalProviderABC):
                     'data': challenge_dict,
                 },
             )
-            r.raise_for_status()
+            raise_for_status(r)
             logger.info(f'Challenge {challenge.challenge_id} has been updated in rCTF')

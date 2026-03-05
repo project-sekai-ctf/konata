@@ -5,6 +5,7 @@ from httpx import AsyncClient
 from loguru import logger
 
 from kona.schema.models import KonaChallengeItem, KonaCTFDCredentials, KonaGlobalConfig
+from kona.util.http import raise_for_status
 from kona.util.jinja import render_template
 
 from .abc import ExternalProviderABC
@@ -91,14 +92,14 @@ class CTFDProvider(ExternalProviderABC):
     async def setup(self) -> None:
         async with self._client as client:
             r = await client.get('/api/v1/challenges?view=admin')
-            r.raise_for_status()
+            raise_for_status(r)
             self.challenges_on_remote = r.json()['data']
         logger.info(f'Retrieved {len(self.challenges_on_remote)} CTFd challenges from remote')
 
     async def _load_full_challenge(self, challenge_id: int) -> dict:
         async with self._client as client:
             r = await client.get(f'/api/v1/challenges/{challenge_id}?view=admin')
-            r.raise_for_status()
+            raise_for_status(r)
             return r.json()['data']
 
     async def _create_challenge(
@@ -109,7 +110,7 @@ class CTFDProvider(ExternalProviderABC):
                 '/api/v1/challenges',
                 json=challenge_dict,
             )
-            r.raise_for_status()
+            raise_for_status(r)
             challenge_id = r.json()['data']['id']
             logger.info(f'Created challenge {challenge.name} in CTFd with ID {challenge_id}')
 
@@ -119,7 +120,7 @@ class CTFDProvider(ExternalProviderABC):
                     '/api/v1/flags',
                     json=flag_to_ctfd(challenge_id, flag),
                 )
-                r.raise_for_status()
+                raise_for_status(r)
 
             # topics
             for topic in challenge.ctfd.topics:
@@ -127,7 +128,7 @@ class CTFDProvider(ExternalProviderABC):
                     '/api/v1/topics',
                     json=topic_to_ctfd(challenge_id, topic),
                 )
-                r.raise_for_status()
+                raise_for_status(r)
 
             # tags
             for tag in challenge.ctfd.tags:
@@ -135,7 +136,7 @@ class CTFDProvider(ExternalProviderABC):
                     '/api/v1/tags',
                     json=tag_to_ctfd(challenge_id, tag),
                 )
-                r.raise_for_status()
+                raise_for_status(r)
 
             # hints
             for hint in challenge.ctfd.hints:
@@ -143,7 +144,7 @@ class CTFDProvider(ExternalProviderABC):
                     '/api/v1/hints',
                     json=hint_to_ctfd(challenge_id, hint),
                 )
-                r.raise_for_status()
+                raise_for_status(r)
 
         # This **needs** to be without Content-Type header, let httpx set it properly with multipart boundary
         async with self._client as client:
@@ -159,7 +160,7 @@ class CTFDProvider(ExternalProviderABC):
                     },
                     files={'file': (attachment_path.name, attachment_path.read_bytes())},
                 )
-                r.raise_for_status()
+                raise_for_status(r)
                 if len(r.json()['data']) < 1:
                     raise RuntimeError
 
@@ -173,7 +174,7 @@ class CTFDProvider(ExternalProviderABC):
                     f'/api/v1/challenges/{current_challenge["id"]}',
                     json=challenge_dict,
                 )
-                r.raise_for_status()
+                raise_for_status(r)
                 logger.info(f'Updated challenge {challenge.challenge_id} in CTFd with ID {current_challenge["id"]}')
 
         async def generic_updater_inner(
@@ -196,14 +197,14 @@ class CTFDProvider(ExternalProviderABC):
                     add_url,
                     json=a_item,
                 )
-                g_r.raise_for_status()
+                raise_for_status(g_r)
                 logger.info(
                     f'Added new {name} {a_item} to {challenge.challenge_id} in CTFd with ID {current_challenge["id"]}'
                 )
 
             for a_item in remove_items:
                 g_r = await _client.delete(remove_url.format(id=a_item['id']))
-                g_r.raise_for_status()
+                raise_for_status(g_r)
                 logger.info(
                     f'Removed {name} {a_item} from {challenge.challenge_id} in CTFd with ID {current_challenge["id"]}'
                 )
@@ -218,7 +219,7 @@ class CTFDProvider(ExternalProviderABC):
         ) -> None:
             async with self._client as _client:
                 g_r = await _client.get(get_url)
-                g_r.raise_for_status()
+                raise_for_status(g_r)
                 await generic_updater_inner(name, _client, add_url, remove_url, g_r.json()['data'], local_items, keys)
 
         # flags
@@ -253,11 +254,11 @@ class CTFDProvider(ExternalProviderABC):
         # hints are a bit special
         async with self._client as _client:
             r = await _client.get(f'/api/v1/hints?challenge_id={current_challenge["id"]}')
-            r.raise_for_status()
+            raise_for_status(r)
             server_hints: list[dict] = r.json()['data']
             for item in server_hints:
                 r = await _client.get(f'/api/v1/hints/{item["id"]}?preview=true')
-                r.raise_for_status()
+                raise_for_status(r)
                 item['content'] = r.json()['data']['content']
 
             await generic_updater_inner(
@@ -273,7 +274,7 @@ class CTFDProvider(ExternalProviderABC):
         # files are special too
         async with self._client as _client:
             r = await _client.get(f'/api/v1/challenges/{current_challenge["id"]}/files')
-            r.raise_for_status()
+            raise_for_status(r)
 
             server_files: list[dict] = r.json()['data']
             local_files: list[dict] = [
@@ -288,7 +289,7 @@ class CTFDProvider(ExternalProviderABC):
             add_files, remove_files = filter_items(server_files, local_files, keys=['sha1sum'])
             for remove_file in remove_files:
                 r = await _client.delete(f'/api/v1/files/{remove_file["id"]}')
-                r.raise_for_status()
+                raise_for_status(r)
                 logger.info(
                     f'Removed file {remove_file} from {challenge.challenge_id} in CTFd '
                     f'with ID {current_challenge["id"]}'
@@ -305,7 +306,7 @@ class CTFDProvider(ExternalProviderABC):
                     },
                     files={'file': (add_file['name'], add_file['data'])},
                 )
-                r.raise_for_status()
+                raise_for_status(r)
                 logger.info(
                     f'Added file {add_file["name"]} to {challenge.challenge_id} in CTFd '
                     f'with ID {current_challenge["id"]}'
