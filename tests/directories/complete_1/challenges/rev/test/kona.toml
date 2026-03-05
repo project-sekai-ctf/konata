@@ -34,7 +34,6 @@ scoring.ctfd.decay_function = "logarithmic"
 scoring.ctfd.decay = 60
 scoring.ctfd.max_attempts = 0
 
-ctfd.state = "visible"
 ctfd.type = "dynamic"
 ctfd.topics = ["topic"]
 ctfd.tags = ["tag"]

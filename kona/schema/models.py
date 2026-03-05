@@ -72,16 +72,11 @@ class FlagValue(BaseModel):
 
 class KonaChallengeItem(BaseModel):
     class CTFD(BaseModel):
-        class ChallengeState(StrEnum):
-            VISIBLE = 'visible'
-            HIDDEN = 'hidden'
-
         class Hint(BaseModel):
             hint: str
             cost: int = 0
             title: str | None = None
 
-        state: ChallengeState = ChallengeState.VISIBLE
         type: str = 'dynamic'
         topics: list[str] = []
         tags: list[str] = []
@@ -161,6 +156,8 @@ class KonaChallengeItem(BaseModel):
     scoring: Scoring = Scoring()
     flags: Flags = Flags()
     endpoints: list[Endpoint] = []
+
+    hidden: bool = False
 
     ctfd: CTFD = CTFD()
     instancer_config: InstancerConfig | None = None

@@ -102,6 +102,7 @@ class RCTFProvider(ExternalProviderABC):
             'category': challenge.category,
             'description': rendered_description,
             'tiebreakEligible': challenge.scoring.rctf.eligible_for_tiebreaks,
+            'hidden': challenge.hidden,
         }
 
         if challenge.instancer_config is not None:

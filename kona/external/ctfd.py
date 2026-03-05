@@ -321,7 +321,7 @@ class CTFDProvider(ExternalProviderABC):
             'description': rendered_description,
             'attribution': render_template(self.global_config.templates.ctfd_attribution, challenge=challenge),
             'type': challenge.ctfd.type,
-            'state': challenge.ctfd.state.value,
+            'state': 'hidden' if challenge.hidden else 'visible',
             'max_attempts': challenge.scoring.ctfd.max_attempts,
             'connection_info': challenge.ctfd.connection_info,
         }
