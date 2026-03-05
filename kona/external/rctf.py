@@ -115,7 +115,7 @@ class RCTFProvider(ExternalProviderABC):
                         'containerName': expose.container_name,
                         'containerPort': expose.container_port,
                         'shouldDisplay': expose.should_display,
-                        'title': expose.title,
+                        **(({'title': expose.title}) if expose.title is not None else {}),
                     }
                     for expose in challenge.instancer_config.expose
                 ],
