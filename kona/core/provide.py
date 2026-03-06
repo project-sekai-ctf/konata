@@ -46,6 +46,7 @@ def resolve_attachments(
     attachments: list[str] | AttachmentConfig,
     fmt: AttachmentFormat,
     challenge_id: str,
+    extra_entries: list[tuple[Path, str]] | None = None,
 ) -> list[Path]:
     cfg = _normalize_config(attachments)
     result: list[Path] = []
@@ -64,6 +65,9 @@ def resolve_attachments(
         elif additional.base64_content is not None:
             dest.write_bytes(base64.b64decode(additional.base64_content))
         entries.append((dest, additional.path))
+
+    if extra_entries:
+        entries.extend(extra_entries)
 
     if entries:
         archive_name = f'{challenge_id}.zip' if fmt == AttachmentFormat.ZIP else f'{challenge_id}.tar.gz'

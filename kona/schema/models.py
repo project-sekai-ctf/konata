@@ -210,6 +210,11 @@ class KonaChallengeConfig(BaseModel):
 
     class ChallengeDeploymentConfig(BaseModel):
         class DockerImage(BaseModel):
+            class Export(BaseModel):
+                stage: str
+                src: str = '/out'
+                dst: str = ''
+
             path: str
             name: str
             tag: str = 'latest'
@@ -217,6 +222,7 @@ class KonaChallengeConfig(BaseModel):
             build_args: dict[str, str] = {}
             platform: str | None = None
             no_cache: bool = False
+            exports: list[Export] = []
 
         class KonaKubernetesManifest(BaseModel):
             paths: list[str]

@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory, mkdtemp
 
 from loguru import logger
 
@@ -31,6 +31,21 @@ class SynchronizedGroup:
 @dataclass
 class SyncResult:
     groups: list[SynchronizedGroup] = field(default_factory=list)
+    _temp_dir: TemporaryDirectory[str] = field(
+        default_factory=lambda: TemporaryDirectory(prefix='kona-sync-'),
+        init=False,
+        repr=False,
+    )
+
+    @property
+    def temp_root(self) -> Path:
+        return Path(self._temp_dir.name)
+
+    def make_temp_dir(self, prefix: str) -> Path:
+        return Path(mkdtemp(prefix=f'{prefix}-', dir=self.temp_root))
+
+    def cleanup(self) -> None:
+        self._temp_dir.cleanup()
 
 
 async def sync_challenge(
@@ -45,10 +60,13 @@ async def sync_challenge(
         logger.warning(f'Skipping {path}')
         return
 
+    export_dir = result.make_temp_dir('exports')
+
     # Deploy
-    deployment_result = await deploy_challenge(config, path, challenge)
+    deployment_result = await deploy_challenge(config, path, challenge, export_dir=export_dir)
     discover_deployed_endpoints(config, challenge, deployment_result)
 
+    extra_entries = [(ef.path, ef.arcname) for ef in deployment_result.exported_files]
     group = SynchronizedGroup(
         deployment_result=deployment_result,
     )
@@ -79,7 +97,12 @@ async def sync_challenge(
 
         with TemporaryDirectory() as tmp_dir:
             attachment_paths = resolve_attachments(
-                path, Path(tmp_dir), chal.attachments, config.attachment_format, chal.challenge_id
+                path,
+                Path(tmp_dir),
+                chal.attachments,
+                config.attachment_format,
+                chal.challenge_id,
+                extra_entries=extra_entries,
             )
             if attachment_paths:
                 logger.info(f'Resolved {len(attachment_paths)} attachment(s) for {chal.challenge_id}')
@@ -134,14 +157,7 @@ async def try_discover_challenges(
         )
 
 
-async def sync(
-    root_path: Path,
-    config: KonaGlobalConfig,
-    *,
-    only_challenges: tuple[str, ...] | None = None,
-    challenge_paths: tuple[str, ...] | None = None,
-) -> SyncResult:
-    result = SyncResult()
+async def setup_external_providers(config: KonaGlobalConfig) -> list[ExternalProviderABC]:
     external_providers: list[ExternalProviderABC] = []
 
     # rCTF
@@ -152,38 +168,65 @@ async def sync(
     if config.ctfd is not None:
         external_providers.append(CTFDProvider(global_config=config, credentials=config.ctfd))
 
-    # Setup external providers
     for provider in external_providers:
         await provider.setup()
 
-    # Set the kubeconfig if there's only one available
-    if len(config.clusters) == 1:
-        load_kubeconfig(config, next(iter(config.clusters.keys())))
+    return external_providers
 
-    if challenge_paths is not None:
-        logger.info(f'Loading {len(challenge_paths)} challenge(s) directly (skipping discovery)')
-        for p in challenge_paths:
-            path = (root_path / p).resolve()
-            challenge_schema = try_load_schema(path, model=KonaChallengeConfig)
-            if challenge_schema is None:
-                logger.warning(f'No challenge config found at {path}, skipping')
-                continue
-            await sync_challenge(result, config, path, challenge_schema, external_providers)
+
+async def sync_challenge_paths(
+    result: SyncResult,
+    root_path: Path,
+    config: KonaGlobalConfig,
+    challenge_paths: tuple[str, ...],
+    external_providers: list[ExternalProviderABC],
+) -> None:
+    logger.info(f'Loading {len(challenge_paths)} challenge(s) directly (skipping discovery)')
+    for p in challenge_paths:
+        path = (root_path / p).resolve()
+        challenge_schema = try_load_schema(path, model=KonaChallengeConfig)
+        if challenge_schema is None:
+            logger.warning(f'No challenge config found at {path}, skipping')
+            continue
+        await sync_challenge(result, config, path, challenge_schema, external_providers)
+
+
+async def sync(
+    root_path: Path,
+    config: KonaGlobalConfig,
+    *,
+    only_challenges: tuple[str, ...] | None = None,
+    challenge_paths: tuple[str, ...] | None = None,
+) -> SyncResult:
+    result = SyncResult()
+    try:
+        external_providers = await setup_external_providers(config)
+
+        # Set the kubeconfig if there's only one available
+        if len(config.clusters) == 1:
+            load_kubeconfig(config, next(iter(config.clusters.keys())))
+
+        if challenge_paths is not None:
+            await sync_challenge_paths(result, root_path, config, challenge_paths, external_providers)
+            return result
+
+        # Resolve challenge filter
+        challenge_filter: set[Path] | None = None
+        if only_challenges is not None:
+            challenge_filter = {(root_path / p).resolve() for p in only_challenges}
+            logger.info(f'Filtering to {len(challenge_filter)} challenge(s): {", ".join(only_challenges)}')
+
+        # Discover challenges
+        await try_discover_challenges(
+            result,
+            root_path,
+            config,
+            external_providers=external_providers,
+            is_root=True,
+            challenge_filter=challenge_filter,
+        )
+    except Exception:
+        result.cleanup()
+        raise
+    else:
         return result
-
-    # Resolve challenge filter
-    challenge_filter: set[Path] | None = None
-    if only_challenges is not None:
-        challenge_filter = {(root_path / p).resolve() for p in only_challenges}
-        logger.info(f'Filtering to {len(challenge_filter)} challenge(s): {", ".join(only_challenges)}')
-
-    # Discover challenges
-    await try_discover_challenges(
-        result,
-        root_path,
-        config,
-        external_providers=external_providers,
-        is_root=True,
-        challenge_filter=challenge_filter,
-    )
-    return result

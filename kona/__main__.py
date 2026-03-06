@@ -38,14 +38,16 @@ async def job(
         only_challenges=only_challenges,
         challenge_paths=resolved_paths,
     )
-
-    context = AnalysisContext(
-        global_config=kona_config,
-        sync_result=sync_result,
-    )
-    for analysis_pass in passes:
-        logger.info(f'Running pass {analysis_pass.__name__}')
-        await analysis_pass(context)
+    try:
+        context = AnalysisContext(
+            global_config=kona_config,
+            sync_result=sync_result,
+        )
+        for analysis_pass in passes:
+            logger.info(f'Running pass {analysis_pass.__name__}')
+            await analysis_pass(context)
+    finally:
+        sync_result.cleanup()
 
     logger.info('We are done here')
 

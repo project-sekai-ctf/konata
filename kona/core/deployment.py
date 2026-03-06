@@ -1,4 +1,7 @@
 import asyncio
+import contextlib
+import io
+import tarfile
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -31,10 +34,26 @@ class BuiltDockerImage:
     digest: str | None = None
 
 
+@dataclass(frozen=True)
+class ExportedFile:
+    path: Path
+    arcname: str
+
+
+@dataclass(frozen=True)
+class DockerBuildOptions:
+    build_args: dict
+    platform: str | None
+    no_cache: bool
+    cache_from: list[str] | None = None
+    target: str | None = None
+
+
 @dataclass
 class DeploymentResult:
     deployed_kubernetes_manifests: list[dict] = field(default_factory=list)
     built_docker_images: list[BuiltDockerImage] = field(default_factory=list)
+    exported_files: list[ExportedFile] = field(default_factory=list)
 
 
 @cache
@@ -57,21 +76,18 @@ def docker_build_image(
     env: docker.DockerClient,
     context_dir: Path,
     full_ref: str,
-    build_args: dict,
-    platform: str | None,
-    *,
-    no_cache: bool,
-    cache_from: list[str] | None = None,
+    options: DockerBuildOptions,
 ) -> None:
     for line in env.api.build(
         path=str(context_dir),
         tag=full_ref,
-        nocache=no_cache,
+        nocache=options.no_cache,
         pull=True,
         forcerm=True,
-        buildargs=build_args,
-        platform=platform,
-        cache_from=cache_from,
+        buildargs=options.build_args,
+        platform=options.platform,
+        cache_from=options.cache_from,
+        target=options.target,
         decode=True,
     ):
         logger.debug(str(line).strip())
@@ -132,11 +148,77 @@ def docker_push_image(env: docker.DockerClient, repository: str, tag: str) -> st
     return None
 
 
+def docker_export_stage(
+    env: docker.DockerClient,
+    context_dir: Path,
+    export: KonaChallengeConfig.ChallengeDeploymentConfig.DockerImage.Export,
+    build_options: DockerBuildOptions,
+    output_dir: Path,
+) -> list[ExportedFile]:
+    temp_tag = f'kona-export-{export.stage}:tmp'
+
+    docker_build_image(
+        env=env,
+        context_dir=context_dir,
+        full_ref=temp_tag,
+        options=DockerBuildOptions(
+            build_args=build_options.build_args,
+            platform=build_options.platform,
+            no_cache=build_options.no_cache,
+            cache_from=build_options.cache_from,
+            target=export.stage,
+        ),
+    )
+
+    dst = export.dst.strip().rstrip('/')
+
+    # Unfortunately, we can't pass buildkit args so we have to workaround like this :(
+    # We are never starting this container though, so it is not as bad
+    container = env.containers.create(temp_tag, command='/')
+    try:
+        archive_stream, _ = container.get_archive(export.src)
+        raw = b''.join(archive_stream)
+
+        # get_archive returns a tar rooted at the basename of src
+        src_base = export.src.strip('/').split('/')[-1] if export.src.strip('/') else ''
+
+        exported: list[ExportedFile] = []
+        with tarfile.open(fileobj=io.BytesIO(raw), mode='r') as tar:
+            for member in tar.getmembers():
+                if not member.isfile():
+                    continue
+
+                rel = member.name.lstrip('./')
+                if src_base and rel.startswith(f'{src_base}/'):
+                    rel = rel[len(src_base) + 1 :]
+                if not rel:
+                    continue
+
+                arcname = f'{dst}/{rel}' if dst else rel
+                out_path = output_dir / arcname
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+
+                extracted = tar.extractfile(member)
+                if extracted is None:
+                    continue
+                out_path.write_bytes(extracted.read())
+
+                exported.append(ExportedFile(path=out_path, arcname=arcname))
+
+        logger.info(f'Exported {len(exported)} file(s) from stage {export.stage}')
+        return exported
+    finally:
+        container.remove(force=True)
+        with contextlib.suppress(docker.errors.APIError):
+            env.images.remove(temp_tag, force=True)
+
+
 async def docker_build_images(
     result: DeploymentResult,
     config: KonaGlobalConfig,
     path: Path,
     deployment_config: KonaChallengeConfig.ChallengeDeploymentConfig,
+    export_dir: Path | None = None,
 ) -> None:
     if not deployment_config.images:
         # No need to call docker_env if we don't need it
@@ -164,15 +246,19 @@ async def docker_build_images(
             if pulled:
                 cache_from = [full_ref]
 
+        build_options = DockerBuildOptions(
+            build_args=image.build_args,
+            platform=image.platform,
+            no_cache=image.no_cache,
+            cache_from=cache_from,
+        )
+
         await asyncio.to_thread(
             docker_build_image,
             env=env,
             context_dir=full_path,
             full_ref=full_ref,
-            build_args=image.build_args,
-            platform=image.platform,
-            no_cache=image.no_cache,
-            cache_from=cache_from,
+            options=build_options,
         )
 
         digest: str | None = None
@@ -189,6 +275,18 @@ async def docker_build_images(
                 digest=digest,
             )
         )
+
+        if image.exports and export_dir is not None:
+            for export in image.exports:
+                exported = await asyncio.to_thread(
+                    docker_export_stage,
+                    env=env,
+                    context_dir=full_path,
+                    export=export,
+                    build_options=build_options,
+                    output_dir=export_dir,
+                )
+                result.exported_files.extend(exported)
 
 
 def _to_dict(obj: Any) -> dict[str, Any]:  # noqa: ANN401
@@ -381,13 +479,16 @@ def _postprocess_image_names(config: KonaGlobalConfig, challenge_config: KonaCha
 
 
 async def deploy_challenge(
-    config: KonaGlobalConfig, path: Path, challenge_config: KonaChallengeConfig
+    config: KonaGlobalConfig,
+    path: Path,
+    challenge_config: KonaChallengeConfig,
+    export_dir: Path | None = None,
 ) -> DeploymentResult:
     result = DeploymentResult()
     deployment_config = challenge_config.deployment
     _postprocess_image_names(config, challenge_config)
 
-    await docker_build_images(result, config, path, deployment_config)
+    await docker_build_images(result, config, path, deployment_config, export_dir=export_dir)
     challenges = challenge_config.challenges
     await k8s_apply_manifests(result, config, path, deployment_config, challenges)
     await k8s_apply_inline_manifests(result, config, deployment_config, challenges)
