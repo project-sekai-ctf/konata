@@ -158,6 +158,7 @@ class KonaChallengeItem(BaseModel):
     endpoints: list[Endpoint] = []
 
     hidden: bool = False
+    sort_weight: int | None = None
 
     ctfd: CTFD = CTFD()
     instancer_config: InstancerConfig | None = None
