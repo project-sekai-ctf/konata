@@ -63,7 +63,7 @@ def docker_build_image(
     no_cache: bool,
     cache_from: list[str] | None = None,
 ) -> None:
-    _, logs = env.images.build(
+    for line in env.api.build(
         path=str(context_dir),
         tag=full_ref,
         nocache=no_cache,
@@ -72,9 +72,12 @@ def docker_build_image(
         buildargs=build_args,
         platform=platform,
         cache_from=cache_from,
-    )
-    for line in logs:
+        decode=True,
+    ):
         logger.debug(str(line).strip())
+
+        if 'error' in line:
+            raise docker.errors.BuildError(line['error'], iter([]))
 
 
 def docker_push_image(env: docker.DockerClient, repository: str, tag: str) -> str | None:
@@ -99,12 +102,12 @@ def docker_push_image(env: docker.DockerClient, repository: str, tag: str) -> st
                 decode=True,
                 **push_kwargs,
             ):
+                logger.debug(str(line).strip())
                 if 'error' in line:
                     error = line['error']
                     break
                 if 'aux' in line:
                     digest = line['aux'].get('Digest')
-                logger.debug(str(line).strip())
         except docker.errors.DockerException as exc:
             error = str(exc)
 
