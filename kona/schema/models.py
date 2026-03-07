@@ -211,12 +211,15 @@ class KonaChallengeConfig(BaseModel):
 
     class ChallengeDeploymentConfig(BaseModel):
         class DockerImage(BaseModel):
+            model_config = ConfigDict(populate_by_name=True)
+
             class Export(BaseModel):
                 stage: str
                 src: str = '/out'
                 dst: str = ''
 
-            path: str
+            build_context: str = Field(alias='path')
+            dockerfile: str | None = None
             name: str
             tag: str = 'latest'
             registry_name: str | None = None

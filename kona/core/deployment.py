@@ -47,6 +47,7 @@ class DockerBuildOptions:
     no_cache: bool
     cache_from: list[str] | None = None
     target: str | None = None
+    dockerfile: str | None = None
 
 
 @dataclass
@@ -80,6 +81,7 @@ def docker_build_image(
 ) -> None:
     for line in env.api.build(
         path=str(context_dir),
+        dockerfile=options.dockerfile,
         tag=full_ref,
         nocache=options.no_cache,
         pull=True,
@@ -236,7 +238,7 @@ async def docker_build_images(
             repository = f'{registry.rstrip("/")}/{image.name}'
 
         full_ref = f'{repository}:{image.tag}'
-        full_path = (path / image.path).resolve().absolute()
+        full_path = (path / image.build_context).resolve().absolute()
 
         logger.info(f'Building {full_ref} for {image.name}:{image.tag}')
 
@@ -251,6 +253,7 @@ async def docker_build_images(
             platform=image.platform,
             no_cache=image.no_cache,
             cache_from=cache_from,
+            dockerfile=image.dockerfile,
         )
 
         await asyncio.to_thread(
