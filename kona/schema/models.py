@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from loguru import logger
-from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
+from pydantic import AliasChoices, AnyHttpUrl, BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
 
 @dataclass
@@ -218,7 +218,7 @@ class KonaChallengeConfig(BaseModel):
                 src: str = '/out'
                 dst: str = ''
 
-            build_context: str = Field(alias='path')
+            build_context: str = Field(validation_alias=AliasChoices('build_context', 'path'))
             dockerfile: str | None = None
             name: str
             tag: str = 'latest'
