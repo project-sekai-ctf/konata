@@ -133,8 +133,9 @@ class RCTFProvider(ExternalProviderABC):
             existing_challenge = next(
                 chal for chal in self.challenges_on_remote if chal['id'] == challenge.challenge_id
             )
+            # TODO(es3n1n): fix this in rctf, the attr in question is hidden
             is_up_to_date = all(
-                existing_challenge[attr] == challenge_dict[attr] for attr in challenge_dict if attr != 'id'
+                existing_challenge.get(attr) == challenge_dict[attr] for attr in challenge_dict if attr != 'id'
             )
         except StopIteration:
             is_up_to_date = False
