@@ -14,6 +14,8 @@ from .abc import ExternalProviderABC
 
 
 class RCTFProvider(ExternalProviderABC):
+    kind = 'rctf'
+
     def __init__(self, global_config: KonaGlobalConfig, credentials: KonaRCTFCredentials) -> None:
         self.global_config = global_config
         self.credentials = credentials

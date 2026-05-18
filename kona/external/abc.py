@@ -5,6 +5,8 @@ from kona.schema.models import KonaChallengeItem
 
 
 class ExternalProviderABC(ABC):
+    kind: str
+
     @abstractmethod
     async def setup(self) -> None:
         pass

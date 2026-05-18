@@ -72,6 +72,8 @@ def filter_items(
 
 
 class CTFDProvider(ExternalProviderABC):
+    kind = 'ctfd'
+
     def __init__(self, global_config: KonaGlobalConfig, credentials: KonaCTFDCredentials) -> None:
         self.global_config = global_config
         self.credentials = credentials

@@ -89,10 +89,7 @@ async def sync_challenge(
             for expose in chal.instancer_config.expose:
                 expose.host_prefix = render_template(expose.host_prefix, **ctx)
 
-        ctx['endpoints_rendered'] = render_template(config.templates.endpoints_text, **ctx)
-
         out_chal = SynchronizedChallenge()
-        out_chal.description = render_template(config.templates.challenge_description, **ctx)
         out_chal.attachments = resolve_source_paths(path, chal.attachments)
 
         with TemporaryDirectory() as tmp_dir:
@@ -108,7 +105,12 @@ async def sync_challenge(
                 logger.info(f'Resolved {len(attachment_paths)} attachment(s) for {chal.challenge_id}')
 
             for provider in external_providers:
-                await provider.sync_challenge(chal, attachment_paths, out_chal.description)
+                endpoints_template = getattr(config.templates.endpoints_text, provider.kind)
+                provider_ctx = {**ctx, 'endpoints_rendered': render_template(endpoints_template, **ctx)}
+                rendered_description = render_template(config.templates.challenge_description, **provider_ctx)
+                if not out_chal.description:
+                    out_chal.description = rendered_description
+                await provider.sync_challenge(chal, attachment_paths, rendered_description)
                 # challenges were updated, refresh the local cache
                 await provider.setup()
 

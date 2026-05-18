@@ -6,6 +6,7 @@ from typing import Any
 
 from loguru import logger
 from pydantic import AliasChoices, AnyHttpUrl, BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
+from pydantic.alias_generators import to_camel
 
 
 @dataclass
@@ -17,6 +18,10 @@ class KonaGlobalState:
 kona_global_state = KonaGlobalState(root_path=Path.cwd())
 
 
+class KonaModel(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+
 class KonaEndpointType(StrEnum):
     HTTP = 'http'
     HTTPS = 'https'
@@ -25,8 +30,7 @@ class KonaEndpointType(StrEnum):
     NCAT_SSL = 'ncat-ssl'
 
 
-class AttachmentAdditionalFile(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+class AttachmentAdditionalFile(KonaModel):
     path: str
     str_content: str | None = Field(default=None, alias='str')
     base64_content: str | None = Field(default=None, alias='base64')
@@ -41,15 +45,14 @@ class AttachmentAdditionalFile(BaseModel):
         return self
 
 
-class AttachmentConfig(BaseModel):
+class AttachmentConfig(KonaModel):
     files: list[str] = []
     exclude: list[str] = []
     additional: list[AttachmentAdditionalFile] = []
     pre_compressed: list[str] = []
 
 
-class FlagValue(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+class FlagValue(KonaModel):
     str_content: str | None = Field(default=None, alias='str')
     file: str | None = None
 
@@ -70,9 +73,9 @@ class FlagValue(BaseModel):
         raise RuntimeError
 
 
-class KonaChallengeItem(BaseModel):
-    class CTFD(BaseModel):
-        class Hint(BaseModel):
+class KonaChallengeItem(KonaModel):
+    class CTFD(KonaModel):
+        class Hint(KonaModel):
             hint: str
             cost: int = 0
             title: str | None = None
@@ -83,13 +86,13 @@ class KonaChallengeItem(BaseModel):
         hints: list[Hint] = []
         connection_info: str = ''
 
-    class Scoring(BaseModel):
-        class CTFD(BaseModel):
+    class Scoring(KonaModel):
+        class CTFD(KonaModel):
             decay_function: str = 'logarithmic'
             decay: int = 60
             max_attempts: int = 0
 
-        class RCTF(BaseModel):
+        class RCTF(KonaModel):
             eligible_for_tiebreaks: bool = True
 
         ctfd: CTFD = CTFD()
@@ -97,22 +100,22 @@ class KonaChallengeItem(BaseModel):
         initial_value: int = 500
         minimum_value: int = 100
 
-    class Flags(BaseModel):
-        class CTFDFlag(BaseModel):
+    class Flags(KonaModel):
+        class CTFDFlag(KonaModel):
             type: str = 'static'
             flag: str | FlagValue
 
         rctf: str | FlagValue = ''
         ctfd: list[CTFDFlag] = []
 
-    class InstancerConfig(BaseModel):
+    class InstancerConfig(KonaModel):
         class ExposeKind(StrEnum):
             TCP = 'tcp'
             TCP_SSL = 'tcp-ssl'
             HTTP = 'http'
             HTTPS = 'https'
 
-        class Expose(BaseModel):
+        class Expose(KonaModel):
             kind: 'KonaChallengeItem.InstancerConfig.ExposeKind'
             host_prefix: str
             container_name: str
@@ -126,7 +129,7 @@ class KonaChallengeItem(BaseModel):
         timeout_milliseconds: int | None = None
         extendable: bool = True
 
-    class Endpoint(BaseModel):
+    class Endpoint(KonaModel):
         name: str | None = None
         type: KonaEndpointType
         endpoint: str
@@ -200,25 +203,23 @@ class KonaChallengeItem(BaseModel):
                 flag.flag = flag.flag.resolve(challenge_dir)
 
 
-class KonaRolloutRestartConfig(BaseModel):
+class KonaRolloutRestartConfig(KonaModel):
     annotation_path: str | None = None
     image: bool = True
 
 
-class KonaChallengeConfig(BaseModel):
-    class DiscoveryConfig(BaseModel):
+class KonaChallengeConfig(KonaModel):
+    class DiscoveryConfig(KonaModel):
         skip: bool = False
 
-    class ChallengeDeploymentConfig(BaseModel):
-        class DockerImage(BaseModel):
-            model_config = ConfigDict(populate_by_name=True)
-
-            class Export(BaseModel):
+    class ChallengeDeploymentConfig(KonaModel):
+        class DockerImage(KonaModel):
+            class Export(KonaModel):
                 stage: str
                 src: str = '/out'
                 dst: str = ''
 
-            build_context: str = Field(validation_alias=AliasChoices('build_context', 'path'))
+            build_context: str = Field(validation_alias=AliasChoices('build_context', 'buildContext', 'path'))
             dockerfile: str | None = None
             name: str
             tag: str = 'latest'
@@ -228,12 +229,12 @@ class KonaChallengeConfig(BaseModel):
             no_cache: bool = False
             exports: list[Export] = []
 
-        class KonaKubernetesManifest(BaseModel):
+        class KonaKubernetesManifest(KonaModel):
             paths: list[str]
             cluster_name: str | None = None
             rollout_restart: KonaRolloutRestartConfig = KonaRolloutRestartConfig()
 
-        class KonaKubernetesInlineManifest(BaseModel):
+        class KonaKubernetesInlineManifest(KonaModel):
             documents: list[dict[str, Any]]
             cluster_name: str | None = None
             rollout_restart: KonaRolloutRestartConfig = KonaRolloutRestartConfig()
@@ -248,7 +249,7 @@ class KonaChallengeConfig(BaseModel):
     deployment: ChallengeDeploymentConfig = ChallengeDeploymentConfig()
 
 
-class KonaSecret(BaseModel):
+class KonaSecret(KonaModel):
     file_path: str | None = None
     value: SecretStr | None = None
     env: str | None = None
@@ -290,7 +291,7 @@ class KonaSecret(BaseModel):
         raise RuntimeError
 
 
-class KonaSecretOrValue(BaseModel):
+class KonaSecretOrValue(KonaModel):
     secret: str | None = None
     value: SecretStr | None = None
 
@@ -310,31 +311,28 @@ class KonaSecretOrValue(BaseModel):
         raise RuntimeError
 
 
-class KonaRCTFCredentials(BaseModel):
+class KonaRCTFCredentials(KonaModel):
     base_url: AnyHttpUrl
     team_token: KonaSecretOrValue
     extra_headers: dict[str, str] = {}
 
 
-class KonaCTFDCredentials(BaseModel):
+class KonaCTFDCredentials(KonaModel):
     base_url: AnyHttpUrl
     admin_token: KonaSecretOrValue
     extra_headers: dict[str, str] = {}
 
 
-class KonaDiscoveryConfig(BaseModel):
+class KonaDiscoveryConfig(KonaModel):
     challenge_folder_depth: int = 3
     attachment_analysis_depth: int = 50
     klodd_domain: str | None = None
     klodd_endpoint_name: str | None = None
 
 
-class KonaTemplatesConfig(BaseModel):
-    # TODO(es3n1n): inlining text here is ugly, consider loading from files
-    challenge_description: str = (
-        '{{ challenge.description }}\n\n{{ endpoints_rendered.strip() }}\n\n**Author**: {{ challenge.author }}'
-    )
-    endpoints_text: str = """{% for endpoint in challenge.endpoints -%}
+class KonaTemplatesConfig(KonaModel):
+    class EndpointsText(KonaModel):
+        ctfd: str = """{% for endpoint in challenge.endpoints -%}
 {% if endpoint.type == models.KonaEndpointType.SOCAT %}
 {{ endpoint.name_prefix }}`socat -,raw,echo=0 tcp:{{ endpoint.endpoint }}:{{ endpoint.port or 1337 }}`
 {% elif endpoint.type == models.KonaEndpointType.NC %}
@@ -351,25 +349,50 @@ class KonaTemplatesConfig(BaseModel):
 unknown endpoint type {{ endpoint.type }}
 {% endif -%}
 {% endfor -%}"""
+        rctf: str = """{% for endpoint in challenge.endpoints %}
+> [!CONNECTION]
+{% if endpoint.type == models.KonaEndpointType.SOCAT -%}
+> {{ endpoint.name_prefix }}socat -,raw,echo=0 tcp:{{ endpoint.endpoint }}:{{ endpoint.port or 1337 }}
+{%- elif endpoint.type == models.KonaEndpointType.NC -%}
+> {{ endpoint.name_prefix }}nc {{ endpoint.endpoint }} {{ endpoint.port or 1337 }}
+{%- elif endpoint.type == models.KonaEndpointType.NCAT_SSL -%}
+> {{ endpoint.name_prefix }}ncat --ssl {{ endpoint.endpoint }} {{ endpoint.port or 1337 }}
+{%- elif endpoint.type in (models.KonaEndpointType.HTTP, models.KonaEndpointType.HTTPS) -%}
+> {{ endpoint.http_endpoint }}
+{%- else -%}
+> unknown endpoint type {{ endpoint.type }}
+{%- endif %}
+{% endfor -%}"""
+
+        @field_validator('ctfd', 'rctf')
+        @classmethod
+        def strip_values(cls, v: str) -> str:
+            return v.strip()
+
+    # TODO(es3n1n): inlining text here is ugly, consider loading from files
+    challenge_description: str = (
+        '{{ challenge.description }}\n\n{{ endpoints_rendered.strip() }}\n\n**Author**: {{ challenge.author }}'
+    )
+    endpoints_text: EndpointsText = EndpointsText()
     ctfd_attribution: str = '**Author**: {{ challenge.author }}'
 
-    @field_validator('challenge_description', 'endpoints_text', 'ctfd_attribution')
+    @field_validator('challenge_description', 'ctfd_attribution')
     @classmethod
     def strip_values(cls, v: str) -> str:
         return v.strip()
 
 
-class KonaGcloudClusterConfig(BaseModel):
+class KonaGcloudClusterConfig(KonaModel):
     cluster_name: str
     project: str
     zone: str
 
 
-class KonaKindClusterConfig(BaseModel):
+class KonaKindClusterConfig(KonaModel):
     cluster_name: str = 'kind'
 
 
-class KonaKubernetesClusterConfig(BaseModel):
+class KonaKubernetesClusterConfig(KonaModel):
     incluster: bool = False
     # KUBECONFIG or ~/.kube/config
     use_default: bool = True
@@ -384,7 +407,7 @@ class AttachmentFormat(StrEnum):
     ZIP = 'zip'
 
 
-class KonaGlobalConfig(BaseModel):
+class KonaGlobalConfig(KonaModel):
     discovery: KonaDiscoveryConfig = KonaDiscoveryConfig()
     secrets: dict[str, KonaSecret] = {}
     rctf: KonaRCTFCredentials | None = None
