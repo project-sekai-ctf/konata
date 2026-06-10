@@ -1,4 +1,5 @@
 import io
+import shutil
 import subprocess
 from dataclasses import dataclass
 
@@ -17,7 +18,13 @@ kubernetes_state = KubernetesState()
 
 
 def _run_checked(args: list[str]) -> str:
-    result = subprocess.run(args, capture_output=True, text=True, check=False)  # noqa: S603
+    # on windows tools like gcloud/kind ship as .cmd wrappersm.
+    executable = shutil.which(args[0])
+    if executable is None:
+        msg = f'Executable "{args[0]}" not found on PATH'
+        raise RuntimeError(msg)
+
+    result = subprocess.run([executable, *args[1:]], capture_output=True, text=True, check=False)  # noqa: S603
     if result.returncode != 0:
         output = (result.stdout + result.stderr).strip()
         msg = f'Command {args} failed (exit {result.returncode}): {output}'
