@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import io
+import re
 import tarfile
 import time
 from collections.abc import Iterable
@@ -98,6 +99,18 @@ def docker_build_image(
             raise docker.errors.BuildError(line['error'], iter([]))
 
 
+def _parse_push_line(line: dict[str, Any]) -> tuple[str | None, str | None]:
+    if 'error' in line:
+        return line['error'], None
+    if 'aux' in line:
+        return None, line['aux'].get('Digest')
+    # Some daemons (e.g. Docker Desktop) don't emit an `aux` line and instead
+    # report the digest in the status text: "<tag>: digest: sha256:... size: N".
+    if 'status' in line and (match := re.search(r'digest:\s*(sha256:[0-9a-f]+)', line['status'])):
+        return None, match.group(1)
+    return None, None
+
+
 def docker_push_image(env: docker.DockerClient, repository: str, tag: str) -> str | None:
     # First try without auth_config so credential helpers (e.g. gcloud) are used.
     # Fall back to auth_config={} for anonymous pushes — needed since Docker 28.3.3
@@ -121,11 +134,11 @@ def docker_push_image(env: docker.DockerClient, repository: str, tag: str) -> st
                 **push_kwargs,
             ):
                 logger.debug(str(line).strip())
-                if 'error' in line:
-                    error = line['error']
+                error, line_digest = _parse_push_line(line)
+                if error is not None:
                     break
-                if 'aux' in line:
-                    digest = line['aux'].get('Digest')
+                if line_digest is not None:
+                    digest = line_digest
         except docker.errors.DockerException as exc:
             error = str(exc)
 
