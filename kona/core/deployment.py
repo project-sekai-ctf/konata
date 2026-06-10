@@ -1,8 +1,8 @@
 import asyncio
-import contextlib
-import io
 import re
-import tarfile
+import shutil
+import subprocess
+import tempfile
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -74,29 +74,66 @@ def docker_pull_for_cache(env: docker.DockerClient, full_ref: str) -> bool:
         return True
 
 
+def _buildx_command(
+    context_dir: Path, options: DockerBuildOptions, sink: list[str], *, tag: str | None = None
+) -> list[str]:
+    docker_bin = shutil.which('docker')
+    if docker_bin is None:
+        msg = 'docker executable not found on PATH'
+        raise RuntimeError(msg)
+
+    cmd = [docker_bin, 'buildx', 'build', '--pull', *sink]
+    if tag:
+        cmd += ['--tag', tag]
+    if options.dockerfile:
+        dockerfile = Path(options.dockerfile)
+        if not dockerfile.is_absolute():
+            dockerfile = context_dir / dockerfile
+        cmd += ['--file', str(dockerfile)]
+    if options.no_cache:
+        cmd.append('--no-cache')
+    if options.platform:
+        cmd += ['--platform', options.platform]
+    if options.target:
+        cmd += ['--target', options.target]
+    for key, value in options.build_args.items():
+        cmd += ['--build-arg', f'{key}={value}']
+    for ref in options.cache_from or []:
+        cmd += ['--cache-from', ref]
+    cmd.append(str(context_dir))
+    return cmd
+
+
+def _run_buildx(cmd: list[str], context_dir: Path, desc: str) -> None:
+    process = subprocess.Popen(  # noqa: S603
+        cmd,
+        cwd=str(context_dir),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    prev = None
+    for line in process.stdout or ():
+        current = line.rstrip()
+        if prev == current:
+            continue
+
+        prev = current
+        logger.debug(current)
+    process.wait()
+
+    if process.returncode != 0:
+        msg = f'docker buildx build failed (exit {process.returncode}) for {desc}'
+        raise docker.errors.BuildError(msg, iter([]))
+
+
 def docker_build_image(
-    env: docker.DockerClient,
     context_dir: Path,
     full_ref: str,
     options: DockerBuildOptions,
 ) -> None:
-    for line in env.api.build(
-        path=str(context_dir),
-        dockerfile=options.dockerfile,
-        tag=full_ref,
-        nocache=options.no_cache,
-        pull=True,
-        forcerm=True,
-        buildargs=options.build_args,
-        platform=options.platform,
-        cache_from=options.cache_from,
-        target=options.target,
-        decode=True,
-    ):
-        logger.debug(str(line).strip())
-
-        if 'error' in line:
-            raise docker.errors.BuildError(line['error'], iter([]))
+    cmd = _buildx_command(context_dir, options, ['--load'], tag=full_ref)
+    _run_buildx(cmd, context_dir, full_ref)
 
 
 def _parse_push_line(line: dict[str, Any]) -> tuple[str | None, str | None]:
@@ -164,68 +201,39 @@ def docker_push_image(env: docker.DockerClient, repository: str, tag: str) -> st
 
 
 def docker_export_stage(
-    env: docker.DockerClient,
     context_dir: Path,
     export: KonaChallengeConfig.ChallengeDeploymentConfig.DockerImage.Export,
     build_options: DockerBuildOptions,
     output_dir: Path,
 ) -> list[ExportedFile]:
-    temp_tag = f'kona-export-{export.stage}:tmp'
-
-    docker_build_image(
-        env=env,
-        context_dir=context_dir,
-        full_ref=temp_tag,
-        options=DockerBuildOptions(
-            build_args=build_options.build_args,
-            platform=build_options.platform,
-            no_cache=build_options.no_cache,
-            cache_from=build_options.cache_from,
-            target=export.stage,
-        ),
+    options = DockerBuildOptions(
+        build_args=build_options.build_args,
+        platform=build_options.platform,
+        no_cache=build_options.no_cache,
+        cache_from=build_options.cache_from,
+        target=export.stage,
     )
-
     dst = export.dst.strip().rstrip('/')
+    src = export.src.strip('/')
 
-    # Unfortunately, we can't pass buildkit args so we have to workaround like this :(
-    # We are never starting this container though, so it is not as bad
-    container = env.containers.create(temp_tag, command='/')
-    try:
-        archive_stream, _ = container.get_archive(export.src)
-        raw = b''.join(archive_stream)
+    with tempfile.TemporaryDirectory() as tmp:
+        stage_root = Path(tmp)
+        cmd = _buildx_command(context_dir, options, ['--output', f'type=local,dest={stage_root}'])
+        _run_buildx(cmd, context_dir, export.stage)
 
-        # get_archive returns a tar rooted at the basename of src
-        src_base = export.src.strip('/').split('/')[-1] if export.src.strip('/') else ''
-
+        src_root = stage_root / src if src else stage_root
         exported: list[ExportedFile] = []
-        with tarfile.open(fileobj=io.BytesIO(raw), mode='r') as tar:
-            for member in tar.getmembers():
-                if not member.isfile():
-                    continue
+        for file in sorted(p for p in src_root.rglob('*') if p.is_file()):
+            arcname = file.relative_to(src_root).as_posix()
+            if dst:
+                arcname = f'{dst}/{arcname}'
+            out_path = output_dir / arcname
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(file, out_path)
+            exported.append(ExportedFile(path=out_path, arcname=arcname))
 
-                rel = member.name.lstrip('./')
-                if src_base and rel.startswith(f'{src_base}/'):
-                    rel = rel[len(src_base) + 1 :]
-                if not rel:
-                    continue
-
-                arcname = f'{dst}/{rel}' if dst else rel
-                out_path = output_dir / arcname
-                out_path.parent.mkdir(parents=True, exist_ok=True)
-
-                extracted = tar.extractfile(member)
-                if extracted is None:
-                    continue
-                out_path.write_bytes(extracted.read())
-
-                exported.append(ExportedFile(path=out_path, arcname=arcname))
-
-        logger.info(f'Exported {len(exported)} file(s) from stage {export.stage}')
-        return exported
-    finally:
-        container.remove(force=True)
-        with contextlib.suppress(docker.errors.APIError):
-            env.images.remove(temp_tag, force=True)
+    logger.info(f'Exported {len(exported)} file(s) from stage {export.stage}')
+    return exported
 
 
 async def docker_build_images(
@@ -271,7 +279,6 @@ async def docker_build_images(
 
         await asyncio.to_thread(
             docker_build_image,
-            env=env,
             context_dir=full_path,
             full_ref=full_ref,
             options=build_options,
@@ -296,7 +303,6 @@ async def docker_build_images(
             for export in image.exports:
                 exported = await asyncio.to_thread(
                     docker_export_stage,
-                    env=env,
                     context_dir=full_path,
                     export=export,
                     build_options=build_options,
