@@ -63,7 +63,8 @@ def main() -> None:
     '--deploy-directory',
     'deploy_directory',
     type=click.Path(exists=True, file_okay=False),
-    required=True,
+    default='.',
+    show_default=True,
 )
 @click.option(
     '--only',
