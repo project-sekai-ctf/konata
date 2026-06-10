@@ -32,8 +32,10 @@ class KonaEndpointType(StrEnum):
 
 class AttachmentAdditionalFile(KonaModel):
     path: str
-    str_content: str | None = Field(default=None, alias='str')
-    base64_content: str | None = Field(default=None, alias='base64')
+    str_content: str | None = Field(default=None, validation_alias=AliasChoices('str', 'strContent', 'str_content'))
+    base64_content: str | None = Field(
+        default=None, validation_alias=AliasChoices('base64', 'base64Content', 'base64_content')
+    )
 
     @model_validator(mode='after')
     def exactly_one_content(self) -> 'AttachmentAdditionalFile':
@@ -53,7 +55,7 @@ class AttachmentConfig(KonaModel):
 
 
 class FlagValue(KonaModel):
-    str_content: str | None = Field(default=None, alias='str')
+    str_content: str | None = Field(default=None, validation_alias=AliasChoices('str', 'strContent', 'str_content'))
     file: str | None = None
 
     @model_validator(mode='after')

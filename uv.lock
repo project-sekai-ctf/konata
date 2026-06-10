@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.12"
 
 [[package]]
@@ -214,7 +214,7 @@ wheels = [
 
 [[package]]
 name = "konata"
-version = "0.0.20"
+version = "0.0.22"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
