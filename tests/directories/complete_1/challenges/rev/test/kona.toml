@@ -8,6 +8,8 @@ description = """
 something1
 """
 
+tags = ["tag"]
+
 flags.rctf = "SEKAI{test_flag}"
 flags.ctfd = [
     {flag = "SEKAI{test_flag}", type = "static"},
@@ -36,7 +38,6 @@ scoring.ctfd.max_attempts = 0
 
 ctfd.type = "dynamic"
 ctfd.topics = ["topic"]
-ctfd.tags = ["tag"]
 ctfd.hints = [
     {hint = "hint"},
 ]

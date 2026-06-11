@@ -133,7 +133,7 @@ class CTFDProvider(ExternalProviderABC):
                 raise_for_status(r)
 
             # tags
-            for tag in challenge.ctfd.tags:
+            for tag in challenge.tags:
                 r = await client.post(
                     '/api/v1/tags',
                     json=tag_to_ctfd(challenge_id, tag),
@@ -249,7 +249,7 @@ class CTFDProvider(ExternalProviderABC):
             get_url=f'/api/v1/tags?challenge_id={current_challenge["id"]}',
             add_url='/api/v1/tags',
             remove_url='/api/v1/tags/{id}',
-            local_items=[tag_to_ctfd(current_challenge['id'], tag) for tag in challenge.ctfd.tags],
+            local_items=[tag_to_ctfd(current_challenge['id'], tag) for tag in challenge.tags],
             keys=['value'],
         )
 

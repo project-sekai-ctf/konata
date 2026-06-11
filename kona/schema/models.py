@@ -84,7 +84,6 @@ class KonaChallengeItem(KonaModel):
 
         type: str = 'dynamic'
         topics: list[str] = []
-        tags: list[str] = []
         hints: list[Hint] = []
         connection_info: str = ''
 
@@ -155,6 +154,7 @@ class KonaChallengeItem(KonaModel):
     override_id: str | None = None
 
     description: str = ''
+    tags: list[str] = []
 
     attachments: list[str] | AttachmentConfig = []
 
