@@ -1,10 +1,19 @@
 import base64
+import re
 from fnmatch import fnmatch
 from pathlib import Path
 
 from kona.schema.models import AttachmentConfig, AttachmentFormat
 from kona.util.tar import make_tar_gz_from
 from kona.util.zip import make_zip
+
+
+# Characters that are illegal in filenames on Windows
+_UNSAFE_FILENAME_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
+def _safe_filename(name: str) -> str:
+    return _UNSAFE_FILENAME_RE.sub('_', name)
 
 
 def _normalize_config(attachments: list[str] | AttachmentConfig) -> AttachmentConfig:
@@ -20,9 +29,16 @@ def _collect_paths(challenge_dir: Path, patterns: list[str]) -> list[Path]:
         if path.is_dir():
             result.extend(p for p in path.rglob('*') if p.is_file())
         elif any(c in pattern for c in ('*', '?', '[')):
-            result.extend(p for p in challenge_dir.glob(pattern) if p.is_file())
+            matches = [p for p in challenge_dir.glob(pattern) if p.is_file()]
+            if not matches:
+                msg = f'Attachment pattern "{pattern}" matched no files in {challenge_dir}'
+                raise FileNotFoundError(msg)
+            result.extend(matches)
         elif path.is_file():
             result.append(path)
+        else:
+            msg = f'Attachment "{pattern}" not found in {challenge_dir}'
+            raise FileNotFoundError(msg)
     return result
 
 
@@ -70,7 +86,8 @@ def resolve_attachments(
         entries.extend(extra_entries)
 
     if entries:
-        archive_name = f'{challenge_id}.zip' if fmt == AttachmentFormat.ZIP else f'{challenge_id}.tar.gz'
+        safe_id = _safe_filename(challenge_id)
+        archive_name = f'{safe_id}.zip' if fmt == AttachmentFormat.ZIP else f'{safe_id}.tar.gz'
         archive_path = tmp_dir / archive_name
         if fmt == AttachmentFormat.ZIP:
             make_zip(archive_path, entries)
@@ -80,7 +97,9 @@ def resolve_attachments(
 
     for pre in cfg.pre_compressed:
         pre_path = challenge_dir / pre
-        if pre_path.is_file():
-            result.append(pre_path)
+        if not pre_path.is_file():
+            msg = f'Pre-compressed attachment "{pre}" not found in {challenge_dir}'
+            raise FileNotFoundError(msg)
+        result.append(pre_path)
 
     return result
