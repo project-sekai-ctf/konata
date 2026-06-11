@@ -75,6 +75,27 @@ class FlagValue(KonaModel):
         raise RuntimeError
 
 
+class AdminBotConfig(KonaModel):
+    code: str | None = None
+    file: str | None = None
+
+    @model_validator(mode='after')
+    def exactly_one_source(self) -> 'AdminBotConfig':
+        has_code = self.code is not None
+        has_file = self.file is not None
+        if has_code == has_file:
+            msg = 'exactly one of code or file must be provided'
+            raise ValueError(msg)
+        return self
+
+    def resolve(self, challenge_dir: Path) -> str:
+        if self.code is not None:
+            return self.code
+        if self.file is not None:
+            return (challenge_dir / self.file).read_text()
+        raise RuntimeError
+
+
 class KonaChallengeItem(KonaModel):
     class CTFD(KonaModel):
         class Hint(KonaModel):
@@ -167,6 +188,7 @@ class KonaChallengeItem(KonaModel):
 
     ctfd: CTFD = CTFD()
     instancer_config: InstancerConfig | None = None
+    admin_bot: AdminBotConfig | None = None
 
     @property
     def challenge_id(self) -> str:
@@ -203,6 +225,11 @@ class KonaChallengeItem(KonaModel):
         for flag in self.flags.ctfd:
             if isinstance(flag.flag, FlagValue):
                 flag.flag = flag.flag.resolve(challenge_dir)
+
+    def resolve_admin_bot(self, challenge_dir: Path) -> None:
+        if self.admin_bot is not None:
+            self.admin_bot.code = self.admin_bot.resolve(challenge_dir)
+            self.admin_bot.file = None
 
 
 class KonaRolloutRestartConfig(KonaModel):

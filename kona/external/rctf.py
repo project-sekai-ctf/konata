@@ -13,6 +13,14 @@ from kona.util.http import raise_for_status
 from .abc import ExternalProviderABC
 
 
+def _attr_is_synced(attr: str, remote_value: object, local_value: object) -> bool:
+    if attr == 'adminBotConfig':
+        remote_code = remote_value.get('code') if isinstance(remote_value, dict) else None
+        local_code = local_value.get('code') if isinstance(local_value, dict) else None
+        return remote_code == local_code
+    return remote_value == local_value
+
+
 class RCTFProvider(ExternalProviderABC):
     kind = 'rctf'
 
@@ -130,6 +138,11 @@ class RCTFProvider(ExternalProviderABC):
         else:
             challenge_dict['instancerConfig'] = None
 
+        # rCTF parses the source on its side to derive inputs/timeout/revision.
+        challenge_dict['adminBotConfig'] = (
+            {'code': challenge.admin_bot.code} if challenge.admin_bot is not None else None
+        )
+
         # TODO(es3n1n): cleanup previous attachments if changed
 
         try:
@@ -138,7 +151,9 @@ class RCTFProvider(ExternalProviderABC):
             )
             # TODO(es3n1n): fix this in rctf, the attr in question is hidden
             is_up_to_date = all(
-                existing_challenge.get(attr) == challenge_dict[attr] for attr in challenge_dict if attr != 'id'
+                _attr_is_synced(attr, existing_challenge.get(attr), challenge_dict[attr])
+                for attr in challenge_dict
+                if attr != 'id'
             )
         except StopIteration:
             is_up_to_date = False

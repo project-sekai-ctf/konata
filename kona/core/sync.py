@@ -76,6 +76,7 @@ async def sync_challenge(
     # Sync challenge to the providers
     for chal in challenge.challenges:
         chal.resolve_flags(path)
+        chal.resolve_admin_bot(path)
         ctx['challenge'] = chal
 
         for ep in chal.endpoints:
