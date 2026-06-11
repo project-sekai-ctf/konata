@@ -90,6 +90,9 @@ async def sync_challenge(
             for expose in chal.instancer_config.expose:
                 expose.host_prefix = render_template(expose.host_prefix, **ctx)
 
+        if chal.admin_bot is not None and chal.admin_bot.code is not None:
+            chal.admin_bot.code = render_template(chal.admin_bot.code, **ctx)
+
         out_chal = SynchronizedChallenge()
         out_chal.attachments = resolve_source_paths(path, chal.attachments)
 
