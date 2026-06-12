@@ -111,6 +111,8 @@ def _run_buildx(cmd: list[str], context_dir: Path, desc: str) -> None:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        encoding='utf-8',
+        errors='replace',
     )
     prev = None
     for line in process.stdout or ():
