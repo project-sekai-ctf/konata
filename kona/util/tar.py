@@ -1,10 +1,13 @@
 import gzip
 import tarfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from io import BytesIO
 from pathlib import Path
 
 
 def _norm_ti(ti: tarfile.TarInfo) -> tarfile.TarInfo:
+    ti.name = ti.name.replace('\\', '/')
     ti.uid = 0
     ti.gid = 0
     ti.uname = 'kona'
@@ -15,8 +18,10 @@ def _norm_ti(ti: tarfile.TarInfo) -> tarfile.TarInfo:
     return ti
 
 
-def _open_deterministic_gzip(output_path: Path) -> gzip.GzipFile:
-    return gzip.GzipFile(filename='', mode='wb', mtime=0, fileobj=output_path.open('wb'))
+@contextmanager
+def _open_deterministic_gzip(output_path: Path) -> Iterator[gzip.GzipFile]:
+    with output_path.open('wb') as raw, gzip.GzipFile(filename='', mode='wb', mtime=0, fileobj=raw) as gz:
+        yield gz
 
 
 def make_tar_gz(output_path: Path, source_files: list[Path]) -> None:

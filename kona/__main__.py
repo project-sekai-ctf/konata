@@ -113,7 +113,7 @@ def compress_cmd(path: str, fmt: str, output_path: str | None) -> None:
 
     if source.is_dir():
         all_files = [p for p in source.rglob('*') if p.is_file()]
-        entries = [(p, str(p.relative_to(source))) for p in all_files]
+        entries = [(p, p.relative_to(source).as_posix()) for p in all_files]
     else:
         entries = [(source, source.name)]
 

@@ -52,6 +52,7 @@ class AttachmentConfig(KonaModel):
     exclude: list[str] = []
     additional: list[AttachmentAdditionalFile] = []
     pre_compressed: list[str] = []
+    archive_name: str | None = None
 
 
 class FlagValue(KonaModel):

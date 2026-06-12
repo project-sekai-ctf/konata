@@ -51,7 +51,7 @@ def resolve_source_paths(challenge_dir: Path, attachments: list[str] | Attachmen
     paths = _collect_paths(challenge_dir, cfg.files)
 
     if cfg.exclude:
-        paths = [p for p in paths if not _is_excluded(str(p.relative_to(challenge_dir)), cfg.exclude)]
+        paths = [p for p in paths if not _is_excluded(p.relative_to(challenge_dir).as_posix(), cfg.exclude)]
 
     return paths
 
@@ -70,9 +70,9 @@ def resolve_attachments(
     collected = _collect_paths(challenge_dir, cfg.files)
 
     if cfg.exclude:
-        collected = [p for p in collected if not _is_excluded(str(p.relative_to(challenge_dir)), cfg.exclude)]
+        collected = [p for p in collected if not _is_excluded(p.relative_to(challenge_dir).as_posix(), cfg.exclude)]
 
-    entries: list[tuple[Path, str]] = [(p, str(p.relative_to(challenge_dir))) for p in collected]
+    entries: list[tuple[Path, str]] = [(p, p.relative_to(challenge_dir).as_posix()) for p in collected]
     for additional in cfg.additional:
         dest = tmp_dir / additional.path
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -86,8 +86,8 @@ def resolve_attachments(
         entries.extend(extra_entries)
 
     if entries:
-        safe_id = _safe_filename(challenge_id)
-        archive_name = f'{safe_id}.zip' if fmt == AttachmentFormat.ZIP else f'{safe_id}.tar.gz'
+        base = _safe_filename(cfg.archive_name or challenge_id)
+        archive_name = f'{base}.zip' if fmt == AttachmentFormat.ZIP else f'{base}.tar.gz'
         archive_path = tmp_dir / archive_name
         if fmt == AttachmentFormat.ZIP:
             make_zip(archive_path, entries)
