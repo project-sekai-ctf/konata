@@ -46,6 +46,12 @@ def _is_excluded(rel_path: str, exclude_patterns: list[str]) -> bool:
     return any(fnmatch(rel_path, pat) for pat in exclude_patterns)
 
 
+def _arcname(path: Path, challenge_dir: Path, strip_components: int) -> str:
+    parts = path.relative_to(challenge_dir).parts
+    stripped = parts[strip_components:] if strip_components else parts
+    return '/'.join(stripped or parts[-1:])
+
+
 def resolve_source_paths(challenge_dir: Path, attachments: list[str] | AttachmentConfig) -> list[Path]:
     cfg = _normalize_config(attachments)
     paths = _collect_paths(challenge_dir, cfg.files)
@@ -72,7 +78,7 @@ def resolve_attachments(
     if cfg.exclude:
         collected = [p for p in collected if not _is_excluded(p.relative_to(challenge_dir).as_posix(), cfg.exclude)]
 
-    entries: list[tuple[Path, str]] = [(p, p.relative_to(challenge_dir).as_posix()) for p in collected]
+    entries: list[tuple[Path, str]] = [(p, _arcname(p, challenge_dir, cfg.strip_components)) for p in collected]
     for additional in cfg.additional:
         dest = tmp_dir / additional.path
         dest.parent.mkdir(parents=True, exist_ok=True)

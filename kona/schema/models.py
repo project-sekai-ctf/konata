@@ -53,6 +53,7 @@ class AttachmentConfig(KonaModel):
     additional: list[AttachmentAdditionalFile] = []
     pre_compressed: list[str] = []
     archive_name: str | None = None
+    strip_components: int = 0
 
 
 class FlagValue(KonaModel):
