@@ -52,6 +52,19 @@ def _arcname(path: Path, challenge_dir: Path, strip_components: int) -> str:
     return '/'.join(stripped or parts[-1:])
 
 
+def _materialize_additional(cfg: AttachmentConfig, tmp_dir: Path) -> list[tuple[Path, str]]:
+    entries: list[tuple[Path, str]] = []
+    for additional in cfg.additional:
+        dest = tmp_dir / additional.path
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if additional.str_content is not None:
+            dest.write_text(additional.str_content)
+        elif additional.base64_content is not None:
+            dest.write_bytes(base64.b64decode(additional.base64_content))
+        entries.append((dest, additional.path))
+    return entries
+
+
 def resolve_source_paths(challenge_dir: Path, attachments: list[str] | AttachmentConfig) -> list[Path]:
     cfg = _normalize_config(attachments)
     paths = _collect_paths(challenge_dir, cfg.files)
@@ -69,6 +82,8 @@ def resolve_attachments(
     fmt: AttachmentFormat,
     challenge_id: str,
     extra_entries: list[tuple[Path, str]] | None = None,
+    *,
+    wrap_dir: bool = True,
 ) -> list[Path]:
     cfg = _normalize_config(attachments)
     result: list[Path] = []
@@ -78,21 +93,18 @@ def resolve_attachments(
     if cfg.exclude:
         collected = [p for p in collected if not _is_excluded(p.relative_to(challenge_dir).as_posix(), cfg.exclude)]
 
+    base = _safe_filename(cfg.archive_name or challenge_id)
+
     entries: list[tuple[Path, str]] = [(p, _arcname(p, challenge_dir, cfg.strip_components)) for p in collected]
-    for additional in cfg.additional:
-        dest = tmp_dir / additional.path
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        if additional.str_content is not None:
-            dest.write_text(additional.str_content)
-        elif additional.base64_content is not None:
-            dest.write_bytes(base64.b64decode(additional.base64_content))
-        entries.append((dest, additional.path))
+    entries.extend(_materialize_additional(cfg, tmp_dir))
 
     if extra_entries:
         entries.extend(extra_entries)
 
+    if wrap_dir:
+        entries = [(p, f'{base}/{arcname}') for p, arcname in entries]
+
     if entries:
-        base = _safe_filename(cfg.archive_name or challenge_id)
         archive_name = f'{base}.zip' if fmt == AttachmentFormat.ZIP else f'{base}.tar.gz'
         archive_path = tmp_dir / archive_name
         if fmt == AttachmentFormat.ZIP:

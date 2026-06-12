@@ -448,3 +448,4 @@ class KonaGlobalConfig(KonaModel):
     clusters: dict[str, KonaKubernetesClusterConfig] = {}
     domains: dict[str, str] = {}
     attachment_format: AttachmentFormat = AttachmentFormat.TAR_GZ
+    attachment_wrap_dir: bool = True

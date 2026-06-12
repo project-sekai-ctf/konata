@@ -104,6 +104,7 @@ async def sync_challenge(
                 config.attachment_format,
                 chal.challenge_id,
                 extra_entries=extra_entries,
+                wrap_dir=config.attachment_wrap_dir,
             )
             if attachment_paths:
                 logger.info(f'Resolved {len(attachment_paths)} attachment(s) for {chal.challenge_id}')
