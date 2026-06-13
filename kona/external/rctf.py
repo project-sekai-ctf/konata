@@ -120,6 +120,11 @@ class RCTFProvider(ExternalProviderABC):
         if challenge.instancer_config is not None:
             challenge_dict['instancerConfig'] = {
                 'challengeIntegrationId': challenge.instancer_config.challenge_integration_id,
+                **(
+                    {'instancer': challenge.instancer_config.instancer}
+                    if challenge.instancer_config.instancer is not None
+                    else {}
+                ),
                 'config': challenge.instancer_config.config,
                 'expose': [
                     {

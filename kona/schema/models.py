@@ -148,6 +148,7 @@ class KonaChallengeItem(KonaModel):
             title: str | None = None
 
         challenge_integration_id: str
+        instancer: str | None = None
         config: Any = {}
         expose: list[Expose] = []
         timeout_milliseconds: int | None = None
