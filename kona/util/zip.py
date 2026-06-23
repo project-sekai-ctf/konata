@@ -1,7 +1,7 @@
 import zipfile
 from pathlib import Path
 
-import pyzipper
+import pyzipper  # type: ignore[import-untyped]
 
 
 _FIXED_DATE_TIME = (1980, 1, 1, 0, 0, 0)

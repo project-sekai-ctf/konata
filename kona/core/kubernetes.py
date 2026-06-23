@@ -1,8 +1,11 @@
 import io
+import os
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 
+from kubernetes.client import Configuration
 from kubernetes.config import load_incluster_config, load_kube_config
 from loguru import logger
 
@@ -17,7 +20,7 @@ class KubernetesState:
 kubernetes_state = KubernetesState()
 
 
-def _run_checked(args: list[str]) -> str:
+def _run_checked(args: list[str], *, env: dict[str, str] | None = None) -> str:
     # on windows tools like gcloud/kind ship as .cmd wrappersm.
     executable = shutil.which(args[0])
     if executable is None:
@@ -25,7 +28,13 @@ def _run_checked(args: list[str]) -> str:
         raise RuntimeError(msg)
 
     result = subprocess.run(  # noqa: S603
-        [executable, *args[1:]], capture_output=True, text=True, encoding='utf-8', errors='replace', check=False
+        [executable, *args[1:]],
+        capture_output=True,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        check=False,
+        env=env,
     )
     if result.returncode != 0:
         output = (result.stdout + result.stderr).strip()
@@ -34,7 +43,14 @@ def _run_checked(args: list[str]) -> str:
     return result.stdout
 
 
-def _load_gcloud_credentials(cluster_name: str, project: str, zone: str) -> None:
+def _load_gcloud_credentials(cluster_name: str, project: str, zone: str) -> str:
+    fd, kubeconfig_path = tempfile.mkstemp(prefix='kona-gcloud-', suffix='.kubeconfig')
+    os.close(fd)
+
+    env = os.environ.copy()
+    env['KUBECONFIG'] = kubeconfig_path
+    env['USE_GKE_GCLOUD_AUTH_PLUGIN'] = 'True'
+
     _run_checked(
         [
             'gcloud',
@@ -46,9 +62,23 @@ def _load_gcloud_credentials(cluster_name: str, project: str, zone: str) -> None
             project,
             '--zone',
             zone,
-        ]
+        ],
+        env=env,
     )
     logger.info(f'Loaded gcloud credentials for cluster "{cluster_name}" in {project}/{zone}')
+    return kubeconfig_path
+
+
+def _ensure_kube_auth_loaded(cluster_name: str) -> None:
+    cfg = Configuration.get_default_copy()
+    if cfg.get_api_key_with_prefix('authorization'):
+        return
+
+    msg = (
+        f'Loaded kubeconfig for cluster "{cluster_name}", but no Kubernetes authorization token was available. '
+        'Make sure gke-gcloud-auth-plugin is installed and gcloud is authenticated.'
+    )
+    raise RuntimeError(msg)
 
 
 def _load_kind_credentials(cluster_name: str) -> None:
@@ -83,8 +113,11 @@ def _load_kubeconfig_single(global_config: KonaGlobalConfig, cluster_name: str) 
         raise ValueError(msg)
 
     if cluster.gcloud:
-        _load_gcloud_credentials(cluster.gcloud.cluster_name, cluster.gcloud.project, cluster.gcloud.zone)
-        load_kube_config()
+        kubeconfig_path = _load_gcloud_credentials(
+            cluster.gcloud.cluster_name, cluster.gcloud.project, cluster.gcloud.zone
+        )
+        load_kube_config(config_file=kubeconfig_path)
+        _ensure_kube_auth_loaded(cluster_name)
         return
 
     if cluster.kind:
