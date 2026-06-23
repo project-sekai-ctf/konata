@@ -105,10 +105,14 @@ def resolve_attachments(
         entries = [(p, f'{base}/{arcname}') for p, arcname in entries]
 
     if entries:
+        # tar.gz has no native encryption
+        if cfg.password:
+            fmt = AttachmentFormat.ZIP
+
         archive_name = f'{base}.zip' if fmt == AttachmentFormat.ZIP else f'{base}.tar.gz'
         archive_path = tmp_dir / archive_name
         if fmt == AttachmentFormat.ZIP:
-            make_zip(archive_path, entries)
+            make_zip(archive_path, entries, cfg.password)
         else:
             make_tar_gz_from(archive_path, entries)
         result.append(archive_path)

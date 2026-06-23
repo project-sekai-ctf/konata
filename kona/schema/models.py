@@ -54,6 +54,7 @@ class AttachmentConfig(KonaModel):
     pre_compressed: list[str] = []
     archive_name: str | None = None
     strip_components: int = 0
+    password: str | None = None
 
 
 class FlagValue(KonaModel):
