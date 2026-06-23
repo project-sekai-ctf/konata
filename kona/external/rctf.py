@@ -7,10 +7,13 @@ from urllib.parse import quote
 from httpx import AsyncClient, Timeout
 from loguru import logger
 
-from kona.schema.models import KonaChallengeItem, KonaGlobalConfig, KonaRCTFCredentials
+from kona.schema.models import KonaChallengeItem, KonaGlobalConfig, KonaRCTFCredentials, RCTFScoringKind
 from kona.util.http import raise_for_status
 
 from .abc import ExternalProviderABC
+
+
+_DECAY_SCORING = {'kind': RCTFScoringKind.DECAY.value}
 
 
 def _attr_is_synced(attr: str, remote_value: object, local_value: object) -> bool:
@@ -18,6 +21,8 @@ def _attr_is_synced(attr: str, remote_value: object, local_value: object) -> boo
         remote_code = remote_value.get('code') if isinstance(remote_value, dict) else None
         local_code = local_value.get('code') if isinstance(local_value, dict) else None
         return remote_code == local_code
+    if attr == 'scoring':
+        return (remote_value or _DECAY_SCORING) == (local_value or _DECAY_SCORING)
     return remote_value == local_value
 
 
@@ -94,6 +99,18 @@ class RCTFProvider(ExternalProviderABC):
             raise_for_status(r)
             return r.json()['data'][0]
 
+    def _scoring_payload(self, challenge: KonaChallengeItem) -> dict[str, Any]:
+        rctf_scoring = challenge.scoring.rctf
+        if rctf_scoring.kind != RCTFScoringKind.DYNAMIC or rctf_scoring.dynamic is None:
+            return {'kind': RCTFScoringKind.DECAY.value}
+        return {
+            'kind': RCTFScoringKind.DYNAMIC.value,
+            'source': {
+                'transport': rctf_scoring.dynamic.transport.value,
+                'secret': rctf_scoring.dynamic.secret.load(global_config=self.global_config),
+            },
+        }
+
     async def sync_challenge(
         self, challenge: KonaChallengeItem, attachment_paths: list[Path], rendered_description: str
     ) -> None:
@@ -116,6 +133,7 @@ class RCTFProvider(ExternalProviderABC):
             'hidden': challenge.hidden,
             'sortWeight': challenge.sort_weight or 0,
             'releaseTime': challenge.release_time_ms,
+            'scoring': self._scoring_payload(challenge),
         }
 
         if challenge.instancer_config is not None:

@@ -100,6 +100,82 @@ class AdminBotConfig(KonaModel):
         raise RuntimeError
 
 
+class KonaSecret(KonaModel):
+    file_path: str | None = None
+    value: SecretStr | None = None
+    env: str | None = None
+
+    @model_validator(mode='after')
+    def exactly_one_of(self) -> 'KonaSecret':
+        provided = [f for f in ('file_path', 'value', 'env') if getattr(self, f) is not None]
+        if len(provided) != 1:
+            msg = 'exactly one of file_path, value, env must be provided'
+            raise ValueError(msg)
+        return self
+
+    @property
+    def loaded(self) -> str:
+        if self.value is not None:
+            return self.value.get_secret_value()
+
+        if self.file_path is not None:
+            file_path = Path(self.file_path)
+            if self.file_path.startswith('.'):
+                # TODO(es3n1n): move to an util
+                file_path = (kona_global_state.root_path / self.file_path).resolve().absolute()
+
+            if not file_path.exists():
+                msg = f'{file_path} does not exist'
+                raise FileNotFoundError(msg)
+
+            self.value = SecretStr(file_path.read_text())
+            return self.value.get_secret_value()
+
+        if self.env is not None:
+            value = os.getenv(self.env)
+            if value is None:
+                msg = f'Environment variable {self.env} is not set'
+                raise ValueError(msg)
+            self.value = SecretStr(value)
+            return self.value.get_secret_value()
+
+        raise RuntimeError
+
+
+class KonaSecretOrValue(KonaModel):
+    secret: str | None = None
+    value: SecretStr | None = None
+
+    @model_validator(mode='after')
+    def exactly_one_of(self) -> 'KonaSecretOrValue':
+        provided = [f for f in ('secret', 'value') if getattr(self, f) is not None]
+        if len(provided) != 1:
+            msg = 'exactly one of secret, value must be provided'
+            raise ValueError(msg)
+        return self
+
+    def load(self, global_config: 'KonaGlobalConfig') -> str:
+        if self.secret is not None:
+            return global_config.secrets[self.secret].loaded
+        if self.value is not None:
+            return self.value.get_secret_value()
+        raise RuntimeError
+
+
+class RCTFScoringKind(StrEnum):
+    DECAY = 'decay'
+    DYNAMIC = 'dynamic'
+
+
+class RCTFDynamicTransport(StrEnum):
+    WEBHOOK = 'webhook'
+
+
+class RCTFDynamicScoring(KonaModel):
+    secret: KonaSecretOrValue
+    transport: RCTFDynamicTransport = RCTFDynamicTransport.WEBHOOK
+
+
 class KonaChallengeItem(KonaModel):
     class CTFD(KonaModel):
         class Hint(KonaModel):
@@ -120,6 +196,15 @@ class KonaChallengeItem(KonaModel):
 
         class RCTF(KonaModel):
             eligible_for_tiebreaks: bool = True
+            kind: RCTFScoringKind = RCTFScoringKind.DECAY
+            dynamic: RCTFDynamicScoring | None = None
+
+            @model_validator(mode='after')
+            def _dynamic_source(self) -> 'KonaChallengeItem.Scoring.RCTF':
+                if self.kind == RCTFScoringKind.DYNAMIC and self.dynamic is None:
+                    msg = 'scoring.rctf.dynamic must be set when scoring.rctf.kind is "dynamic"'
+                    raise ValueError(msg)
+                return self
 
         ctfd: CTFD = CTFD()
         rctf: RCTF = RCTF()
@@ -289,68 +374,6 @@ class KonaChallengeConfig(KonaModel):
     discovery: DiscoveryConfig = DiscoveryConfig()
     challenges: list[KonaChallengeItem] = []
     deployment: ChallengeDeploymentConfig = ChallengeDeploymentConfig()
-
-
-class KonaSecret(KonaModel):
-    file_path: str | None = None
-    value: SecretStr | None = None
-    env: str | None = None
-
-    @model_validator(mode='after')
-    def exactly_one_of(self) -> 'KonaSecret':
-        provided = [f for f in ('file_path', 'value', 'env') if getattr(self, f) is not None]
-        if len(provided) != 1:
-            msg = 'exactly one of file_path, value, env must be provided'
-            raise ValueError(msg)
-        return self
-
-    @property
-    def loaded(self) -> str:
-        if self.value is not None:
-            return self.value.get_secret_value()
-
-        if self.file_path is not None:
-            file_path = Path(self.file_path)
-            if self.file_path.startswith('.'):
-                # TODO(es3n1n): move to an util
-                file_path = (kona_global_state.root_path / self.file_path).resolve().absolute()
-
-            if not file_path.exists():
-                msg = f'{file_path} does not exist'
-                raise FileNotFoundError(msg)
-
-            self.value = SecretStr(file_path.read_text())
-            return self.value.get_secret_value()
-
-        if self.env is not None:
-            value = os.getenv(self.env)
-            if value is None:
-                msg = f'Environment variable {self.env} is not set'
-                raise ValueError(msg)
-            self.value = SecretStr(value)
-            return self.value.get_secret_value()
-
-        raise RuntimeError
-
-
-class KonaSecretOrValue(KonaModel):
-    secret: str | None = None
-    value: SecretStr | None = None
-
-    @model_validator(mode='after')
-    def exactly_one_of(self) -> 'KonaSecretOrValue':
-        provided = [f for f in ('secret', 'value') if getattr(self, f) is not None]
-        if len(provided) != 1:
-            msg = 'exactly one of secret, value must be provided'
-            raise ValueError(msg)
-        return self
-
-    def load(self, global_config: 'KonaGlobalConfig') -> str:
-        if self.secret is not None:
-            return global_config.secrets[self.secret].loaded
-        if self.value is not None:
-            return self.value.get_secret_value()
-        raise RuntimeError
 
 
 class KonaRCTFCredentials(KonaModel):
