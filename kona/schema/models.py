@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -189,6 +190,7 @@ class KonaChallengeItem(KonaModel):
 
     hidden: bool = False
     sort_weight: int | None = None
+    release_time: datetime | None = None
 
     ctfd: CTFD = CTFD()
     instancer_config: InstancerConfig | None = None
@@ -199,6 +201,13 @@ class KonaChallengeItem(KonaModel):
         if self.override_id is not None:
             return self.override_id
         return f'{self.category}_{self.name}'
+
+    @property
+    def release_time_ms(self) -> int | None:
+        if self.release_time is None:
+            return None
+        dt = self.release_time if self.release_time.tzinfo is not None else self.release_time.replace(tzinfo=UTC)
+        return int(dt.timestamp() * 1000)
 
     @field_validator('description')
     @classmethod

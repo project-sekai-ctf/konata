@@ -115,6 +115,7 @@ class RCTFProvider(ExternalProviderABC):
             'tiebreakEligible': challenge.scoring.rctf.eligible_for_tiebreaks,
             'hidden': challenge.hidden,
             'sortWeight': challenge.sort_weight or 0,
+            'releaseTime': challenge.release_time_ms,
         }
 
         if challenge.instancer_config is not None:
