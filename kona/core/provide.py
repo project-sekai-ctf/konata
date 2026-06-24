@@ -80,7 +80,7 @@ def resolve_attachments(
     tmp_dir: Path,
     attachments: list[str] | AttachmentConfig,
     fmt: AttachmentFormat,
-    challenge_id: str,
+    default_archive_name: str,
     extra_entries: list[tuple[Path, str]] | None = None,
     *,
     wrap_dir: bool = True,
@@ -93,7 +93,7 @@ def resolve_attachments(
     if cfg.exclude:
         collected = [p for p in collected if not _is_excluded(p.relative_to(challenge_dir).as_posix(), cfg.exclude)]
 
-    base = _safe_filename(cfg.archive_name or challenge_id)
+    base = _safe_filename(cfg.archive_name or default_archive_name)
 
     entries: list[tuple[Path, str]] = [(p, _arcname(p, challenge_dir, cfg.strip_components)) for p in collected]
     entries.extend(_materialize_additional(cfg, tmp_dir))

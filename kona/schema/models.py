@@ -1,4 +1,5 @@
 import os
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -286,6 +287,13 @@ class KonaChallengeItem(KonaModel):
         if self.override_id is not None:
             return self.override_id
         return f'{self.category}_{self.name}'
+
+    @property
+    def default_archive_name(self) -> str:
+        def param(x: str) -> str:
+            return re.sub(r'\s+', '-', x.strip().lower())
+
+        return f'{param(self.category)}_{param(self.name)}'
 
     @property
     def release_time_ms(self) -> int | None:

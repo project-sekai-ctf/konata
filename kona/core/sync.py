@@ -102,7 +102,7 @@ async def sync_challenge(
                 Path(tmp_dir),
                 chal.attachments,
                 config.attachment_format,
-                chal.challenge_id,
+                chal.default_archive_name,
                 extra_entries=extra_entries,
                 wrap_dir=config.attachment_wrap_dir,
             )
