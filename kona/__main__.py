@@ -6,8 +6,7 @@ from loguru import logger
 from kona.analysis import include_passes
 from kona.analysis.passes import AnalysisContext, passes
 from kona.schema.models import AttachmentFormat
-from kona.util.tar import make_tar_gz_from
-from kona.util.zip import make_zip
+from kona.util.archive import archive_format_for_password, make_archive
 
 from .core.sync import sync
 from .schema.models import KonaGlobalConfig, kona_global_state
@@ -89,8 +88,8 @@ def sync_cmd(deploy_directory: str, only: tuple[str, ...], challenge_paths: tupl
     '-f',
     '--format',
     'fmt',
-    type=click.Choice(['tar_gz', 'zip'], case_sensitive=False),
-    default='tar_gz',
+    type=click.Choice([fmt.value for fmt in AttachmentFormat], case_sensitive=False),
+    default=AttachmentFormat.TAR_GZ.value,
     show_default=True,
 )
 @click.option(
@@ -100,16 +99,20 @@ def sync_cmd(deploy_directory: str, only: tuple[str, ...], challenge_paths: tupl
     type=click.Path(),
     default=None,
 )
+@click.option(
+    '-p',
+    '--password',
+    type=str,
+    default=None,
+    help='Encrypt the archive',
+)
 @logger.catch(reraise=True)
-def compress_cmd(path: str, fmt: str, output_path: str | None) -> None:
+def compress_cmd(path: str, fmt: str, output_path: str | None, password: str | None) -> None:
     source = Path(path).resolve()
-    attachment_fmt = AttachmentFormat(fmt)
+    attachment_fmt = AttachmentFormat(fmt.lower())
+    output_fmt = archive_format_for_password(attachment_fmt, password)
 
-    if output_path is None:
-        ext = '.zip' if attachment_fmt == AttachmentFormat.ZIP else '.tar.gz'
-        output = Path.cwd() / f'{source.name}{ext}'
-    else:
-        output = Path(output_path).resolve()
+    output = Path.cwd() / f'{source.name}{output_fmt.extension}' if output_path is None else Path(output_path).resolve()
 
     if source.is_dir():
         all_files = [p for p in source.rglob('*') if p.is_file()]
@@ -121,10 +124,7 @@ def compress_cmd(path: str, fmt: str, output_path: str | None) -> None:
         logger.warning('No files to compress')
         return
 
-    if attachment_fmt == AttachmentFormat.ZIP:
-        make_zip(output, entries)
-    else:
-        make_tar_gz_from(output, entries)
+    make_archive(output, entries, attachment_fmt, password)
 
     logger.info(f'Compressed {len(entries)} file(s) to {output}')
 

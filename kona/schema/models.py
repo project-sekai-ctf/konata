@@ -478,6 +478,15 @@ class KonaKubernetesClusterConfig(KonaModel):
 class AttachmentFormat(StrEnum):
     TAR_GZ = 'tar_gz'
     ZIP = 'zip'
+    SEVEN_Z = '7z'
+
+    @property
+    def extension(self) -> str:
+        return {
+            AttachmentFormat.TAR_GZ: '.tar.gz',
+            AttachmentFormat.ZIP: '.zip',
+            AttachmentFormat.SEVEN_Z: '.7z',
+        }[self]
 
 
 class KonaGlobalConfig(KonaModel):

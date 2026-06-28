@@ -24,16 +24,7 @@ def _open_deterministic_gzip(output_path: Path) -> Iterator[gzip.GzipFile]:
         yield gz
 
 
-def make_tar_gz(output_path: Path, source_files: list[Path]) -> None:
-    with (
-        _open_deterministic_gzip(output_path) as gz,
-        tarfile.open(fileobj=gz, mode='w', format=tarfile.USTAR_FORMAT) as tar,
-    ):
-        for source_file in source_files:
-            tar.add(source_file, arcname=source_file.name, filter=_norm_ti)
-
-
-def make_tar_gz_from(output_path: Path, source_files: list[tuple[Path, str]]) -> None:
+def make_tar_gz(output_path: Path, source_files: list[tuple[Path, str]]) -> None:
     with (
         _open_deterministic_gzip(output_path) as gz,
         tarfile.open(fileobj=gz, mode='w', format=tarfile.USTAR_FORMAT) as tar,

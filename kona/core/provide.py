@@ -4,8 +4,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 
 from kona.schema.models import AttachmentConfig, AttachmentFormat
-from kona.util.tar import make_tar_gz_from
-from kona.util.zip import make_zip
+from kona.util.archive import archive_format_for_password, make_archive
 
 
 # Characters that are illegal in filenames on Windows
@@ -105,16 +104,10 @@ def resolve_attachments(
         entries = [(p, f'{base}/{arcname}') for p, arcname in entries]
 
     if entries:
-        # tar.gz has no native encryption
-        if cfg.password:
-            fmt = AttachmentFormat.ZIP
-
-        archive_name = f'{base}.zip' if fmt == AttachmentFormat.ZIP else f'{base}.tar.gz'
+        archive_fmt = archive_format_for_password(fmt, cfg.password)
+        archive_name = f'{base}{archive_fmt.extension}'
         archive_path = tmp_dir / archive_name
-        if fmt == AttachmentFormat.ZIP:
-            make_zip(archive_path, entries, cfg.password)
-        else:
-            make_tar_gz_from(archive_path, entries)
+        make_archive(archive_path, entries, fmt, cfg.password)
         result.append(archive_path)
 
     for pre in cfg.pre_compressed:
