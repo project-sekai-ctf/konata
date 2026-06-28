@@ -210,7 +210,7 @@ class KonaChallengeItem(KonaModel):
         ctfd: CTFD = CTFD()
         rctf: RCTF = RCTF()
         initial_value: int = 500
-        minimum_value: int = 100
+        minimum_value: int = 50
 
     class Flags(KonaModel):
         class CTFDFlag(KonaModel):
