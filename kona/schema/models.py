@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from loguru import logger
 from pydantic import AliasChoices, AnyHttpUrl, BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
@@ -217,7 +217,11 @@ class KonaChallengeItem(KonaModel):
             type: str = 'static'
             flag: str | FlagValue
 
-        rctf: str | FlagValue = ''
+        class RCTFFlag(KonaModel):
+            provider: str = 'flags/static'
+            config: dict[str, Any]
+
+        rctf: str | FlagValue | RCTFFlag | list[str | FlagValue | RCTFFlag] = ''
         ctfd: list[CTFDFlag] = []
 
     class InstancerConfig(KonaModel):
@@ -325,9 +329,27 @@ class KonaChallengeItem(KonaModel):
             logger.warning(f'No attachments set for challenge {self.challenge_id}')
         return self
 
+    @property
+    def rctf_flag_entries(self) -> list['KonaChallengeItem.Flags.RCTFFlag']:
+        rctf_flags = self.flags.rctf if isinstance(self.flags.rctf, list) else [self.flags.rctf]
+        if not all(isinstance(entry, KonaChallengeItem.Flags.RCTFFlag) for entry in rctf_flags):
+            msg = f'rctf flags of {self.challenge_id} are not resolved'
+            raise TypeError(msg)
+        return cast('list[KonaChallengeItem.Flags.RCTFFlag]', rctf_flags)
+
     def resolve_flags(self, challenge_dir: Path) -> None:
-        if isinstance(self.flags.rctf, FlagValue):
-            self.flags.rctf = self.flags.rctf.resolve(challenge_dir)
+        rctf_flags = self.flags.rctf if isinstance(self.flags.rctf, list) else [self.flags.rctf]
+        resolved: list[str | FlagValue | KonaChallengeItem.Flags.RCTFFlag] = []
+        for rctf_flag in rctf_flags:
+            entry: str | FlagValue | KonaChallengeItem.Flags.RCTFFlag = rctf_flag
+            if isinstance(entry, FlagValue):
+                entry = entry.resolve(challenge_dir)
+            if isinstance(entry, str):
+                if not entry:
+                    continue
+                entry = KonaChallengeItem.Flags.RCTFFlag(config={'flag': entry})
+            resolved.append(entry)
+        self.flags.rctf = resolved
         for flag in self.flags.ctfd:
             if isinstance(flag.flag, FlagValue):
                 flag.flag = flag.flag.resolve(challenge_dir)

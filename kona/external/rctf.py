@@ -62,12 +62,12 @@ class RCTFProvider(ExternalProviderABC):
                 logger.info('Authenticated in rCTF')
 
         async with self._client as client:
-            r = await client.get('/api/v1/admin/challs')
+            r = await client.get('/api/v2/admin/challs')
             raise_for_status(r)
             self.challenges_on_remote = r.json()['data']
         logger.info(f'Retrieved {len(self.challenges_on_remote)} rCTF challenges from remote')
 
-    async def _upload_file(self, file: Path) -> dict[str, str]:
+    async def _upload_file(self, file: Path) -> dict[str, Any]:
         # If its already deployed, return the existing file info
         async with self._client as client:
             r = await client.post(
@@ -85,13 +85,15 @@ class RCTFProvider(ExternalProviderABC):
             upload_info = r.json()['data']
             if upload_info and upload_info[0]['url']:
                 logger.info(f'File {file.name} is already uploaded to rCTF')
-                return upload_info[0]
+                info = upload_info[0]
+                # strip out extra values
+                return {'name': info['name'], 'url': info['url'], 'size': info.get('size')}
 
         # Otherwise, upload it
         async with self._client as client:
             logger.info(f'Uploading {file.name} to rCTF')
             r = await client.post(
-                '/api/v2/admin/upload',  # v2
+                '/api/v2/admin/upload',
                 files={
                     'files': (file.name, BytesIO(file.read_bytes()), 'application/binary'),
                 },
@@ -114,11 +116,11 @@ class RCTFProvider(ExternalProviderABC):
     async def sync_challenge(
         self, challenge: KonaChallengeItem, attachment_paths: list[Path], rendered_description: str
     ) -> None:
-        uploaded_files: list[dict[str, str]] = [
+        uploaded_files: list[dict[str, Any]] = [
             await self._upload_file(attachment_path) for attachment_path in attachment_paths
         ]
         challenge_dict: dict[str, Any] = {
-            'flag': challenge.flags.rctf,
+            'flags': [{'provider': entry.provider, 'config': entry.config} for entry in challenge.rctf_flag_entries],
             'name': challenge.name,
             'files': uploaded_files,
             'author': challenge.author,
@@ -177,7 +179,7 @@ class RCTFProvider(ExternalProviderABC):
             is_up_to_date = all(
                 _attr_is_synced(attr, existing_challenge.get(attr), challenge_dict[attr])
                 for attr in challenge_dict
-                if attr != 'id'
+                if attr != 'id' and attr in existing_challenge
             )
         except StopIteration:
             is_up_to_date = False
