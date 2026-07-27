@@ -1,4 +1,5 @@
 import hashlib
+from http import HTTPStatus
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -62,6 +63,12 @@ class RCTFProvider(ExternalProviderABC):
                 logger.info('Authenticated in rCTF')
 
         async with self._client as client:
+            providers_response = await client.get('/api/v2/admin/flags/providers')
+            if providers_response.status_code == HTTPStatus.NOT_FOUND:
+                msg = 'rCTF does not support flag providers; upgrade rCTF before syncing'
+                raise RuntimeError(msg)
+            raise_for_status(providers_response)
+
             r = await client.get('/api/v2/admin/challs')
             raise_for_status(r)
             self.challenges_on_remote = r.json()['data']
@@ -175,11 +182,10 @@ class RCTFProvider(ExternalProviderABC):
             existing_challenge = next(
                 chal for chal in self.challenges_on_remote if chal['id'] == challenge.challenge_id
             )
-            # TODO(es3n1n): fix this in rctf, the attr in question is hidden
             is_up_to_date = all(
                 _attr_is_synced(attr, existing_challenge.get(attr), challenge_dict[attr])
                 for attr in challenge_dict
-                if attr != 'id' and attr in existing_challenge
+                if attr != 'id'
             )
         except StopIteration:
             is_up_to_date = False

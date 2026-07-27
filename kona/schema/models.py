@@ -506,6 +506,13 @@ unknown endpoint type {{ endpoint.type }}
     endpoints_text: EndpointsText = EndpointsText()
     ctfd_attribution: str = '**Author**: {{ challenge.author }}'
 
+    @field_validator('challenge_description', mode='before')
+    @classmethod
+    def expand_legacy_challenge_description(cls, v: Any) -> Any:  # noqa: ANN401
+        if isinstance(v, str):
+            return {'ctfd': v, 'rctf': v}
+        return v
+
     @field_validator('ctfd_attribution')
     @classmethod
     def strip_values(cls, v: str) -> str:
