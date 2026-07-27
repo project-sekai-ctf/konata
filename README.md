@@ -6,7 +6,7 @@
 
 kona is a CTF tool for managing challenges and deploying them across multiple CTF platforms. It aims to fix the problems we have experienced while hosting CTFs.
 
-Please see the [rCTF docs](https://rctf.osec.io/integrations/konata/) for the documentation.
+Please see [rCTF docs](https://rctf.osec.io/integrations/konata/) for the documentation.
 
 ## Acknowledgements
 
