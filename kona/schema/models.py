@@ -464,14 +464,23 @@ unknown endpoint type {{ endpoint.type }}
         def strip_values(cls, v: str) -> str:
             return v.strip()
 
+    class ChallengeDescription(KonaModel):
+        ctfd: str = (
+            '{{ challenge.description }}\n\n{{ endpoints_rendered.strip() }}\n\n**Author**: {{ challenge.author }}'
+        )
+        rctf: str = '{{ challenge.description }}\n\n{{ endpoints_rendered.strip() }}'
+
+        @field_validator('ctfd', 'rctf')
+        @classmethod
+        def strip_values(cls, v: str) -> str:
+            return v.strip()
+
     # TODO(es3n1n): inlining text here is ugly, consider loading from files
-    challenge_description: str = (
-        '{{ challenge.description }}\n\n{{ endpoints_rendered.strip() }}\n\n**Author**: {{ challenge.author }}'
-    )
+    challenge_description: ChallengeDescription = ChallengeDescription()
     endpoints_text: EndpointsText = EndpointsText()
     ctfd_attribution: str = '**Author**: {{ challenge.author }}'
 
-    @field_validator('challenge_description', 'ctfd_attribution')
+    @field_validator('ctfd_attribution')
     @classmethod
     def strip_values(cls, v: str) -> str:
         return v.strip()

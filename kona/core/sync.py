@@ -112,7 +112,8 @@ async def sync_challenge(
             for provider in external_providers:
                 endpoints_template = getattr(config.templates.endpoints_text, provider.kind)
                 provider_ctx = {**ctx, 'endpoints_rendered': render_template(endpoints_template, **ctx)}
-                rendered_description = render_template(config.templates.challenge_description, **provider_ctx)
+                description_template = getattr(config.templates.challenge_description, provider.kind)
+                rendered_description = render_template(description_template, **provider_ctx)
                 if not out_chal.description:
                     out_chal.description = rendered_description
                 await provider.sync_challenge(chal, attachment_paths, rendered_description)
