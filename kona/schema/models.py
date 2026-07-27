@@ -7,7 +7,17 @@ from pathlib import Path
 from typing import Any, cast
 
 from loguru import logger
-from pydantic import AliasChoices, AnyHttpUrl, BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    AnyHttpUrl,
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from pydantic.alias_generators import to_camel
 
 
@@ -78,6 +88,21 @@ class FlagValue(KonaModel):
         if self.file is not None:
             return (challenge_dir / self.file).read_text().strip()
         raise RuntimeError
+
+
+def resolve_flag_values(value: Any, challenge_dir: Path) -> Any:  # noqa: ANN401
+    if isinstance(value, FlagValue):
+        return value.resolve(challenge_dir)
+    if isinstance(value, dict):
+        if set(value.keys()) <= {'str', 'strContent', 'str_content', 'file'}:
+            try:
+                return FlagValue.model_validate(value).resolve(challenge_dir)
+            except ValidationError:
+                pass
+        return {k: resolve_flag_values(v, challenge_dir) for k, v in value.items()}
+    if isinstance(value, list):
+        return [resolve_flag_values(v, challenge_dir) for v in value]
+    return value
 
 
 class AdminBotConfig(KonaModel):
@@ -219,7 +244,7 @@ class KonaChallengeItem(KonaModel):
 
         class RCTFFlag(KonaModel):
             provider: str = 'flags/static'
-            config: dict[str, Any]
+            config: dict[str, Any] = Field(validation_alias=AliasChoices('config', 'options'))
 
         rctf: str | FlagValue | RCTFFlag | list[str | FlagValue | RCTFFlag] = ''
         ctfd: list[CTFDFlag] = []
@@ -348,6 +373,7 @@ class KonaChallengeItem(KonaModel):
                 if not entry:
                     continue
                 entry = KonaChallengeItem.Flags.RCTFFlag(config={'flag': entry})
+            entry.config = resolve_flag_values(entry.config, challenge_dir)
             resolved.append(entry)
         self.flags.rctf = resolved
         for flag in self.flags.ctfd:
