@@ -4,10 +4,20 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from loguru import logger
-from pydantic import AliasChoices, AnyHttpUrl, BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    AnyHttpUrl,
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from pydantic.alias_generators import to_camel
 
 
@@ -78,6 +88,21 @@ class FlagValue(KonaModel):
         if self.file is not None:
             return (challenge_dir / self.file).read_text().strip()
         raise RuntimeError
+
+
+def resolve_flag_values(value: Any, challenge_dir: Path) -> Any:  # noqa: ANN401
+    if isinstance(value, FlagValue):
+        return value.resolve(challenge_dir)
+    if isinstance(value, dict):
+        if set(value.keys()) <= {'str', 'strContent', 'str_content', 'file'}:
+            try:
+                return FlagValue.model_validate(value).resolve(challenge_dir)
+            except ValidationError:
+                pass
+        return {k: resolve_flag_values(v, challenge_dir) for k, v in value.items()}
+    if isinstance(value, list):
+        return [resolve_flag_values(v, challenge_dir) for v in value]
+    return value
 
 
 class AdminBotConfig(KonaModel):
@@ -217,7 +242,11 @@ class KonaChallengeItem(KonaModel):
             type: str = 'static'
             flag: str | FlagValue
 
-        rctf: str | FlagValue = ''
+        class RCTFFlag(KonaModel):
+            provider: str = 'flags/static'
+            config: dict[str, Any] = Field(validation_alias=AliasChoices('config', 'options'))
+
+        rctf: str | FlagValue | RCTFFlag | list[str | FlagValue | RCTFFlag] = ''
         ctfd: list[CTFDFlag] = []
 
     class InstancerConfig(KonaModel):
@@ -325,9 +354,28 @@ class KonaChallengeItem(KonaModel):
             logger.warning(f'No attachments set for challenge {self.challenge_id}')
         return self
 
+    @property
+    def rctf_flag_entries(self) -> list['KonaChallengeItem.Flags.RCTFFlag']:
+        rctf_flags = self.flags.rctf if isinstance(self.flags.rctf, list) else [self.flags.rctf]
+        if not all(isinstance(entry, KonaChallengeItem.Flags.RCTFFlag) for entry in rctf_flags):
+            msg = f'rctf flags of {self.challenge_id} are not resolved'
+            raise TypeError(msg)
+        return cast('list[KonaChallengeItem.Flags.RCTFFlag]', rctf_flags)
+
     def resolve_flags(self, challenge_dir: Path) -> None:
-        if isinstance(self.flags.rctf, FlagValue):
-            self.flags.rctf = self.flags.rctf.resolve(challenge_dir)
+        rctf_flags = self.flags.rctf if isinstance(self.flags.rctf, list) else [self.flags.rctf]
+        resolved: list[str | FlagValue | KonaChallengeItem.Flags.RCTFFlag] = []
+        for rctf_flag in rctf_flags:
+            entry: str | FlagValue | KonaChallengeItem.Flags.RCTFFlag = rctf_flag
+            if isinstance(entry, FlagValue):
+                entry = entry.resolve(challenge_dir)
+            if isinstance(entry, str):
+                if not entry:
+                    continue
+                entry = KonaChallengeItem.Flags.RCTFFlag(config={'flag': entry})
+            entry.config = resolve_flag_values(entry.config, challenge_dir)
+            resolved.append(entry)
+        self.flags.rctf = resolved
         for flag in self.flags.ctfd:
             if isinstance(flag.flag, FlagValue):
                 flag.flag = flag.flag.resolve(challenge_dir)
@@ -442,14 +490,30 @@ unknown endpoint type {{ endpoint.type }}
         def strip_values(cls, v: str) -> str:
             return v.strip()
 
+    class ChallengeDescription(KonaModel):
+        ctfd: str = (
+            '{{ challenge.description }}\n\n{{ endpoints_rendered.strip() }}\n\n**Author**: {{ challenge.author }}'
+        )
+        rctf: str = '{{ challenge.description }}\n\n{{ endpoints_rendered.strip() }}'
+
+        @field_validator('ctfd', 'rctf')
+        @classmethod
+        def strip_values(cls, v: str) -> str:
+            return v.strip()
+
     # TODO(es3n1n): inlining text here is ugly, consider loading from files
-    challenge_description: str = (
-        '{{ challenge.description }}\n\n{{ endpoints_rendered.strip() }}\n\n**Author**: {{ challenge.author }}'
-    )
+    challenge_description: ChallengeDescription = ChallengeDescription()
     endpoints_text: EndpointsText = EndpointsText()
     ctfd_attribution: str = '**Author**: {{ challenge.author }}'
 
-    @field_validator('challenge_description', 'ctfd_attribution')
+    @field_validator('challenge_description', mode='before')
+    @classmethod
+    def expand_legacy_challenge_description(cls, v: Any) -> Any:  # noqa: ANN401
+        if isinstance(v, str):
+            return {'ctfd': v, 'rctf': v}
+        return v
+
+    @field_validator('ctfd_attribution')
     @classmethod
     def strip_values(cls, v: str) -> str:
         return v.strip()
