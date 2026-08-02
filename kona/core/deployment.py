@@ -276,6 +276,7 @@ async def docker_build_images(
             platform=image.platform,
             no_cache=image.no_cache,
             cache_from=cache_from,
+            target=image.target,
             dockerfile=image.dockerfile,
         )
 

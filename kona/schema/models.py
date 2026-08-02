@@ -409,6 +409,7 @@ class KonaChallengeConfig(KonaModel):
             registry_name: str | None = None
             build_args: dict[str, str] = {}
             platform: str | None = None
+            target: str | None = None
             no_cache: bool = False
             exports: list[Export] = []
 
