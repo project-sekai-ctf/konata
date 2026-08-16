@@ -14,12 +14,13 @@ from typing import Any
 
 import docker
 import yaml
+from docker.models.images import Image
 from kubernetes.client import ApiClient, ApiException
 from kubernetes.dynamic import DynamicClient
 from kubernetes.dynamic.exceptions import ResourceNotFoundError
 from loguru import logger
 
-from kona.schema.models import KonaChallengeConfig, KonaGlobalConfig
+from kona.schema.models import KonaChallengeConfig, KonaGlobalConfig, KonaRolloutRestartConfig
 from kona.util.jinja import render_template, render_template_values
 
 from .kubernetes import load_kubeconfig, resolve_cluster_names
@@ -33,6 +34,7 @@ class BuiltDockerImage:
     path: Path
     full_ref: str
     digest: str | None = None
+    changed: bool = True
 
 
 @dataclass(frozen=True)
@@ -63,15 +65,40 @@ def docker_env() -> docker.DockerClient:
     return docker.from_env()
 
 
-def docker_pull_for_cache(env: docker.DockerClient, full_ref: str) -> bool:
+def docker_pull_for_cache(env: docker.DockerClient, full_ref: str) -> Image | None:
     try:
-        env.images.pull(full_ref)
+        pulled = env.images.pull(full_ref)
     except docker.errors.APIError:
         logger.debug(f'Could not pull {full_ref} for cache (not found or not accessible)')
-        return False
+        return None
     else:
         logger.info(f'Pulled {full_ref} for cache')
-        return True
+        return pulled if isinstance(pulled, Image) else None
+
+
+def _registry_digest_if_unchanged(
+    env: docker.DockerClient,
+    repository: str,
+    full_ref: str,
+    pulled: Image | None,
+) -> str | None:
+    if pulled is None:
+        return None
+
+    try:
+        built = env.images.get(full_ref)
+    except docker.errors.DockerException:
+        return None
+
+    if built.id != pulled.id:
+        return None
+
+    prefix = f'{repository}@'
+    for entry in pulled.attrs.get('RepoDigests') or []:
+        if entry.startswith(prefix):
+            return entry.removeprefix(prefix)
+
+    return None
 
 
 def _buildx_command(
@@ -82,7 +109,8 @@ def _buildx_command(
         msg = 'docker executable not found on PATH'
         raise RuntimeError(msg)
 
-    cmd = [docker_bin, 'buildx', 'build', '--pull', *sink]
+    # provenance attestations embed build timestamps
+    cmd = [docker_bin, 'buildx', 'build', '--pull', '--provenance=false', *sink]
     if tag:
         cmd += ['--tag', tag]
     if options.dockerfile:
@@ -260,9 +288,10 @@ async def docker_build_images(
         logger.info(f'Building {full_ref} for {image.name}:{image.tag}')
 
         cache_from: list[str] | None = None
+        pulled: Image | None = None
         if image.registry_name and not image.no_cache:
             pulled = await asyncio.to_thread(docker_pull_for_cache, env, full_ref)
-            if pulled:
+            if pulled is not None:
                 cache_from = [full_ref]
 
         build_options = DockerBuildOptions(
@@ -281,18 +310,14 @@ async def docker_build_images(
             options=build_options,
         )
 
-        digest: str | None = None
-        if not image.registry_name:
-            logger.warning(f'Skipping push for {full_ref} (no registry specified)')
-        else:
-            logger.info(f'Pushing {full_ref} for {image.name}:{image.tag}')
-            digest = await asyncio.to_thread(docker_push_image, env=env, repository=repository, tag=image.tag)
+        digest, changed = await _push_image_if_changed(env, image, repository, full_ref, pulled)
 
         result.built_docker_images.append(
             BuiltDockerImage(
                 path=full_path,
                 full_ref=full_ref,
                 digest=digest,
+                changed=changed,
             )
         )
 
@@ -306,6 +331,27 @@ async def docker_build_images(
                     output_dir=export_dir,
                 )
                 result.exported_files.extend(exported)
+
+
+async def _push_image_if_changed(
+    env: docker.DockerClient,
+    image: KonaChallengeConfig.ChallengeDeploymentConfig.DockerImage,
+    repository: str,
+    full_ref: str,
+    pulled: Image | None,
+) -> tuple[str | None, bool]:
+    if not image.registry_name:
+        logger.warning(f'Skipping push for {full_ref} (no registry specified)')
+        return None, True
+
+    digest = await asyncio.to_thread(_registry_digest_if_unchanged, env, repository, full_ref, pulled)
+    if digest is not None:
+        logger.info(f'Skipping push for {full_ref} (image unchanged, already pushed as {digest})')
+        return digest, False
+
+    logger.info(f'Pushing {full_ref} for {image.name}:{image.tag}')
+    digest = await asyncio.to_thread(docker_push_image, env=env, repository=repository, tag=image.tag)
+    return digest, True
 
 
 def _to_dict(obj: Any) -> dict[str, Any]:  # noqa: ANN401
@@ -439,6 +485,12 @@ async def _k8s_apply_items(
         await _k8s_apply_items_to_cluster(result, config, None, items)
 
 
+def _rollout_annotation_needed(result: DeploymentResult, rollout_restart: KonaRolloutRestartConfig) -> bool:
+    if rollout_restart.always or not result.built_docker_images:
+        return True
+    return any(built.changed for built in result.built_docker_images)
+
+
 def _inject_rollout_annotation(items: list[dict[str, Any]], annotation_path: str | None) -> None:
     if not annotation_path:
         return
@@ -468,7 +520,8 @@ async def k8s_apply_manifests(
             for doc in yaml.safe_load_all(render_template((path / manifest_path_str).read_text(), **manifest_context))
             for item in k8s_expand_manifest(doc)
         ]
-        _inject_rollout_annotation(items, manifest.rollout_restart.annotation_path)
+        if _rollout_annotation_needed(result, manifest.rollout_restart):
+            _inject_rollout_annotation(items, manifest.rollout_restart.annotation_path)
         await _k8s_apply_items(result, config, manifest.cluster_name, items)
 
 
@@ -487,7 +540,8 @@ async def k8s_apply_inline_manifests(
             for doc in manifest.documents
             for item in k8s_expand_manifest(render_template_values(doc, **manifest_context))
         ]
-        _inject_rollout_annotation(items, manifest.rollout_restart.annotation_path)
+        if _rollout_annotation_needed(result, manifest.rollout_restart):
+            _inject_rollout_annotation(items, manifest.rollout_restart.annotation_path)
         await _k8s_apply_items(result, config, manifest.cluster_name, items)
 
 

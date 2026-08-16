@@ -416,6 +416,7 @@ class KonaChallengeItem(KonaModel):
 class KonaRolloutRestartConfig(KonaModel):
     annotation_path: str | None = None
     image: bool = True
+    always: bool = False
 
 
 class KonaChallengeConfig(KonaModel):

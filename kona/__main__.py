@@ -77,11 +77,17 @@ def main() -> None:
     '--challenge-path',
     'challenge_paths',
     multiple=True,
-    help='Direct paths to challenge directories (skips discovery).',
+    help='Direct paths to challenge directories (skips discovery). Can also be passed as positional arguments.',
 )
+@click.argument('paths', nargs=-1)
 @logger.catch(reraise=True)
-def sync_cmd(deploy_directory: str, only: tuple[str, ...], challenge_paths: tuple[str, ...]) -> None:
-    run(job(deploy_directory, only=only, challenge_paths=challenge_paths))
+def sync_cmd(
+    deploy_directory: str,
+    only: tuple[str, ...],
+    challenge_paths: tuple[str, ...],
+    paths: tuple[str, ...],
+) -> None:
+    run(job(deploy_directory, only=only, challenge_paths=(*challenge_paths, *paths)))
 
 
 @main.command('compress')
