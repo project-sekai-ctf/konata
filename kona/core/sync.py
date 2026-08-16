@@ -11,7 +11,7 @@ from kona.core.provide import resolve_attachments, resolve_source_paths
 from kona.external.abc import ExternalProviderABC
 from kona.external.ctfd import CTFDProvider
 from kona.external.rctf import RCTFProvider
-from kona.schema.models import KonaChallengeConfig, KonaGlobalConfig
+from kona.schema.models import KonaChallengeConfig, KonaGlobalConfig, kona_global_state
 from kona.schema.parsers import try_load_schema
 from kona.util.jinja import render_template, render_template_values
 
@@ -48,6 +48,21 @@ class SyncResult:
         self._temp_dir.cleanup()
 
 
+def _challenge_path_id(path: Path) -> str:
+    resolved = path.resolve()
+    try:
+        return resolved.relative_to(kona_global_state.root_path).as_posix()
+    except ValueError:
+        return resolved.name
+
+
+def _assign_generated_ids(config: KonaGlobalConfig, path: Path, challenge: KonaChallengeConfig) -> None:
+    path_id = _challenge_path_id(path)
+    for index, chal in enumerate(challenge.challenges):
+        seed = f'{path_id}/{index}' if len(challenge.challenges) > 1 else path_id
+        chal.assign_generated_id(seed, config.challenge_id_format)
+
+
 async def sync_challenge(
     result: SyncResult,
     config: KonaGlobalConfig,
@@ -55,6 +70,7 @@ async def sync_challenge(
     challenge: KonaChallengeConfig,
     external_providers: list[ExternalProviderABC],
 ) -> None:
+    _assign_generated_ids(config, path, challenge)
     logger.info(f'Discovered challenge(s) at {path}: {", ".join(chal.challenge_id for chal in challenge.challenges)}')
     if challenge.discovery.skip:
         logger.warning(f'Skipping {path}')

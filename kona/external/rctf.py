@@ -120,9 +120,23 @@ class RCTFProvider(ExternalProviderABC):
             },
         }
 
+    def _resolve_challenge_id(self, challenge: KonaChallengeItem) -> str:
+        challenge_id = challenge.challenge_id
+        if challenge.override_id is not None:
+            return challenge_id
+
+        # we should update the challenge with legacy id if it exists
+        remote_ids = {chal['id'] for chal in self.challenges_on_remote}
+        legacy_id = challenge.legacy_challenge_id
+        if challenge_id not in remote_ids and legacy_id in remote_ids:
+            logger.info(f'Using legacy id {legacy_id} for challenge {challenge_id} (already exists in rCTF)')
+            return legacy_id
+        return challenge_id
+
     async def sync_challenge(
         self, challenge: KonaChallengeItem, attachment_paths: list[Path], rendered_description: str
     ) -> None:
+        challenge_id = self._resolve_challenge_id(challenge)
         uploaded_files: list[dict[str, Any]] = [
             await self._upload_file(attachment_path) for attachment_path in attachment_paths
         ]
@@ -179,9 +193,7 @@ class RCTFProvider(ExternalProviderABC):
         # TODO(es3n1n): cleanup previous attachments if changed
 
         try:
-            existing_challenge = next(
-                chal for chal in self.challenges_on_remote if chal['id'] == challenge.challenge_id
-            )
+            existing_challenge = next(chal for chal in self.challenges_on_remote if chal['id'] == challenge_id)
             is_up_to_date = all(
                 _attr_is_synced(attr, existing_challenge.get(attr), challenge_dict[attr])
                 for attr in challenge_dict
@@ -191,15 +203,15 @@ class RCTFProvider(ExternalProviderABC):
             is_up_to_date = False
 
         if is_up_to_date:
-            logger.info(f'Challenge {challenge.challenge_id} is already up to date in rCTF')
+            logger.info(f'Challenge {challenge.name} ({challenge_id}) is already up to date in rCTF')
             return
 
         async with self._client as client:
             r = await client.put(
-                f'/api/v2/admin/challs/{quote(challenge.challenge_id)}',  # v2
+                f'/api/v2/admin/challs/{quote(challenge_id)}',  # v2
                 json={
                     'data': challenge_dict,
                 },
             )
             raise_for_status(r)
-            logger.info(f'Challenge {challenge.challenge_id} has been updated in rCTF')
+            logger.info(f'Challenge {challenge.name} ({challenge_id}) has been updated in rCTF')

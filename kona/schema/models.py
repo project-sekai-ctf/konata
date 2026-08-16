@@ -1,3 +1,4 @@
+import hashlib
 import os
 import re
 from dataclasses import dataclass
@@ -13,6 +14,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    PrivateAttr,
     SecretStr,
     ValidationError,
     field_validator,
@@ -202,6 +204,12 @@ class RCTFDynamicScoring(KonaModel):
     transport: RCTFDynamicTransport = RCTFDynamicTransport.WEBHOOK
 
 
+class ChallengeIdFormat(StrEnum):
+    NAME = 'name'
+    PATH = 'path'
+    PATH_SHA256 = 'path-sha256'
+
+
 class KonaChallengeItem(KonaModel):
     class CTFD(KonaModel):
         class Hint(KonaModel):
@@ -311,11 +319,29 @@ class KonaChallengeItem(KonaModel):
     instancer_config: InstancerConfig | None = None
     admin_bot: AdminBotConfig | None = None
 
+    _generated_id: str | None = PrivateAttr(default=None)
+
+    def assign_generated_id(self, path_seed: str, id_format: ChallengeIdFormat) -> None:
+        if id_format == ChallengeIdFormat.NAME:
+            self._generated_id = self.legacy_challenge_id
+            return
+        if id_format == ChallengeIdFormat.PATH_SHA256:
+            # 64 bits is more than enough
+            self._generated_id = hashlib.sha256(path_seed.encode()).hexdigest()[:16]
+            return
+        self._generated_id = path_seed.replace('/', '_')
+
+    @property
+    def legacy_challenge_id(self) -> str:
+        return f'{self.category}_{self.name}'
+
     @property
     def challenge_id(self) -> str:
         if self.override_id is not None:
             return self.override_id
-        return f'{self.category}_{self.name}'
+        if self._generated_id is not None:
+            return self._generated_id
+        return self.legacy_challenge_id
 
     @property
     def default_archive_name(self) -> str:
@@ -565,3 +591,4 @@ class KonaGlobalConfig(KonaModel):
     domains: dict[str, str] = {}
     attachment_format: AttachmentFormat = AttachmentFormat.TAR_GZ
     attachment_wrap_dir: bool = True
+    challenge_id_format: ChallengeIdFormat = ChallengeIdFormat.PATH_SHA256
