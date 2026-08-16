@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import time
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from functools import cache
 from http import HTTPStatus
@@ -208,14 +208,7 @@ def docker_export_stage(
     build_options: DockerBuildOptions,
     output_dir: Path,
 ) -> list[ExportedFile]:
-    options = DockerBuildOptions(
-        build_args=build_options.build_args,
-        platform=build_options.platform,
-        no_cache=build_options.no_cache,
-        cache_from=build_options.cache_from,
-        target=export.stage,
-        dockerfile=build_options.dockerfile,
-    )
+    options = replace(build_options, target=export.stage)
     dst = export.dst.strip().rstrip('/')
     src = export.src.strip('/')
 
