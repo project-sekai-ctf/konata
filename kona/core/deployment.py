@@ -214,6 +214,7 @@ def docker_export_stage(
         no_cache=build_options.no_cache,
         cache_from=build_options.cache_from,
         target=export.stage,
+        dockerfile=build_options.dockerfile,
     )
     dst = export.dst.strip().rstrip('/')
     src = export.src.strip('/')
