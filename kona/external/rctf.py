@@ -29,12 +29,14 @@ def _attr_is_synced(attr: str, remote_value: object, local_value: object) -> boo
 
 class RCTFProvider(ExternalProviderABC):
     kind = 'rctf'
+    display_name = 'rCTF'
 
     def __init__(self, global_config: KonaGlobalConfig, credentials: KonaRCTFCredentials) -> None:
         self.global_config = global_config
         self.credentials = credentials
         self.bearer_token: str | None = None
         self.challenges_on_remote: list[dict] = []
+        self.synced_remote_ids = set()
 
     @property
     def _client(self) -> AsyncClient:
@@ -137,6 +139,7 @@ class RCTFProvider(ExternalProviderABC):
         self, challenge: KonaChallengeItem, attachment_paths: list[Path], rendered_description: str
     ) -> None:
         challenge_id = self._resolve_challenge_id(challenge)
+        self.synced_remote_ids.add(challenge_id)
         uploaded_files: list[dict[str, Any]] = [
             await self._upload_file(attachment_path) for attachment_path in attachment_paths
         ]

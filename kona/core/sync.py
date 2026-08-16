@@ -249,6 +249,11 @@ async def sync(
             is_root=True,
             challenge_filter=challenge_filter,
         )
+
+        # report untracked challenges only if we're syncing all challenges at once
+        if challenge_filter is None:
+            for provider in external_providers:
+                provider.report_untracked_challenges()
     except Exception:
         result.cleanup()
         raise

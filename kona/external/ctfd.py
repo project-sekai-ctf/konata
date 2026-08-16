@@ -73,12 +73,14 @@ def filter_items(
 
 class CTFDProvider(ExternalProviderABC):
     kind = 'ctfd'
+    display_name = 'CTFd'
 
     def __init__(self, global_config: KonaGlobalConfig, credentials: KonaCTFDCredentials) -> None:
         self.global_config = global_config
         self.credentials = credentials
         self.admin_token: str = credentials.admin_token.load(global_config=global_config)
         self.challenges_on_remote: list[dict] = []
+        self.synced_remote_ids = set()
 
     @property
     def _client(self) -> AsyncClient:
@@ -114,6 +116,7 @@ class CTFDProvider(ExternalProviderABC):
             )
             raise_for_status(r)
             challenge_id = r.json()['data']['id']
+            self.synced_remote_ids.add(challenge_id)
             logger.info(f'Created challenge {challenge.name} in CTFd with ID {challenge_id}')
 
             # flags
@@ -348,6 +351,7 @@ class CTFDProvider(ExternalProviderABC):
             existing_challenge = None
 
         if existing_challenge:
+            self.synced_remote_ids.add(existing_challenge['id'])
             logger.info(f'Challenge {challenge.challenge_id} already exists in CTFd with ID {existing_challenge["id"]}')
             await self._update_challenge(challenge, attachment_paths, challenge_dict, existing_challenge)
             return
