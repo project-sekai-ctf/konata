@@ -10,7 +10,14 @@ def render_template(template: str, **kwargs: Any) -> str:  # noqa: ANN401
     env = SandboxedEnvironment()
     env.filters['re_escape'] = re.escape
     tmpl = env.from_string(template)
-    return tmpl.render(models=models, **kwargs)
+
+    context: dict[str, Any] = {'models': models}
+    if models.kona_global_state.global_config is not None:
+        context['config'] = models.kona_global_state.global_config
+        context['kv'] = models.kona_global_state.global_config.kv
+
+    context.update(kwargs)
+    return tmpl.render(**context)
 
 
 def render_template_values(obj: Any, **kwargs: Any) -> Any:  # noqa: ANN401

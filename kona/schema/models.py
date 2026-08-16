@@ -26,6 +26,7 @@ from pydantic.alias_generators import to_camel
 @dataclass
 class KonaGlobalState:
     root_path: Path
+    global_config: 'KonaGlobalConfig | None' = None
 
 
 # TODO(es3n1n): this is very sketchy
@@ -588,7 +589,12 @@ class KonaGlobalConfig(KonaModel):
     templates: KonaTemplatesConfig = KonaTemplatesConfig()
     registries: dict[str, str] = {}
     clusters: dict[str, KonaKubernetesClusterConfig] = {}
-    domains: dict[str, str] = {}
+    kv: dict[str, str] = Field(default={}, validation_alias=AliasChoices('kv', 'domains'))
     attachment_format: AttachmentFormat = AttachmentFormat.TAR_GZ
     attachment_wrap_dir: bool = True
     challenge_id_format: ChallengeIdFormat = ChallengeIdFormat.PATH_SHA256
+
+    @property
+    def domains(self) -> dict[str, str]:
+        # backward compat
+        return self.kv

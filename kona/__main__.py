@@ -31,6 +31,8 @@ async def job(
     only_challenges: tuple[str, ...] | None = only if only else None
     resolved_paths: tuple[str, ...] | None = challenge_paths if challenge_paths else None
     kona_config = load_schema(kona_global_state.root_path, model=KonaGlobalConfig)
+    kona_global_state.global_config = kona_config
+
     sync_result = await sync(
         kona_global_state.root_path,
         kona_config,
